@@ -1,0 +1,2 @@
+# Optional draft writer, Apache-2.0. Pin the API used by export_jianying.py.
+pyjianyingdraft @ git+https://github.com/GuanYixuan/pyJianYingDraft.git@c3318066d964744e2bfc66f75c71745fe8cea52a

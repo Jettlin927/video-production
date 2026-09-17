@@ -50,6 +50,8 @@ python scripts/bootstrap.py --keep
 
 ## 公共能力
 
+- 用户要选择交付形式或回剪映手动调整时，读取 [jianying-export.md](references/jianying-export.md)，在最终渲染前记录 `production.json.export_format`（`mp4` / `jianying` / `both`）。剪映工程保留独立切段、完整原素材、文本字幕和独立 BGM；仅要工程时可跳过整片 MP4 渲染。生成文件、剪映实际打开、人工编辑保存和视听验收分别记录。
+
 - 首次运行、换机器或工具报错时先跑 [scripts/check_env.py](scripts/check_env.py)：它按路线核对 Python、FFmpeg、Node/浏览器、共享 `.env`、字体完整性与磁盘余量，并解析不在 PATH 里的 ffmpeg。加 `--search <目录>` 扩大查找范围，`--write-tools` 记录结果供后续运行复用，`--json` 给机器读。缺依赖时按提示安装，或明确写出缺项；不把缺依赖说成已能制作。
 - 视频/录音需要字幕或文字稿时读取 [asr.md](references/asr.md)。`.env` 已配置时，在用户要求的转写/剪辑范围内用百炼脚本执行；支持 WAV/MP3 上传、词级时码和说话人分离。含画外提示时先确定主角角色与保留词，再剪媒体和重建字幕。ffmpeg 不在 PATH 时按检查脚本解析出的路径传 `--ffmpeg`。
 - 为整片补充证据链、解释画面或节奏空镜时，先读 [visual-planning.md](references/visual-planning.md)：按原句判断画面用途，真实证据绑定真实来源；生成图片共享一套视觉风格，并与首张合格基准图逐张对照。保持 raw＋风格的最小输入，缺省决策由 Agent 完成。

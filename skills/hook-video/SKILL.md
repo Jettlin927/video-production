@@ -38,6 +38,8 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 
 ## 4. Remotion 制作
 
+- 若交付选择为 `jianying`，按主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md) 将同一 layout-plan 的配音、BGM、图片和文案映射为独立轨道，可跳过 Remotion 整片渲染；`both` 则保留 Remotion 成片/工程并另交剪映草稿。剪映版基础文本可编辑，逐字动效、chip 和复杂包装尚未自动转换，交付时明确差异。
+
 - 按主 Skill [check_env.py](../video-production/scripts/check_env.py) 确认 Node、浏览器、FFmpeg 可用；在独立输出目录建立 Remotion 工程，锁定依赖版本，单一帧时钟驱动所有动画。
 - 组件从 [assets/remotion](assets/remotion) 起步：TypewriterLine、KeywordChips、BilingualSubtitleBar。这些是模板组件，首次实片渲染后按实际效果校准再复用。
 - 字体读取主 Skill [fonts.md](../video-production/references/fonts.md)，等待真实字体加载后再渲染；大字排版按真实字宽检查换行与溢出。
