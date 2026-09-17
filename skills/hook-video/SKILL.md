@@ -7,12 +7,13 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 
 本 Skill 是 [video-production](../video-production/SKILL.md) 的钩子视频子流程；主 Skill 判断"没有真人原片、目标是钩子/推广"后在当前任务进入这里，直接调用时同样执行。主 Skill 统一管理百炼 Key、生成脚本、字体与环境检查；本子流程管理钩子脚本、配音、排版动画与验收，不复制第二份配置。
 
-输入最少为一个宣传方向（"宣传什么"）加一句受众或 CTA 定调。输出带配音的排版动画 MP4、脚本与排版计划、可编辑 Remotion 工程和质检结果。整条视频零实拍：画面由文字排版动画与生成配图构成，不包含真人镜头；核心是保留真人原声表达的内容回 [talking-head-cut](../talking-head-cut/SKILL.md)。
+输入最少为一个宣传方向（"宣传什么"）加一句受众或 CTA 定调。输出带配音的排版动画 MP4、剪映可编辑草稿（含完整素材）、脚本与排版计划、Remotion 工程和质检结果。整条视频零实拍：画面由文字排版动画与生成配图构成，不包含真人镜头；核心是保留真人原声表达的内容回 [talking-head-cut](../talking-head-cut/SKILL.md)。
 
 参考形态（来自一条 30 秒样片的逐帧拆解）：白底大字逐层堆叠、打字机逐字出现、关键词圆角 chip 依次点亮、色彩按语义分级、底部双语字幕、结尾 CTA。形态由当次风格定调决定，参考形态用于校准组件，不是默认模板。
 
 ## 1. 定方向、写钩子脚本
 
+- 完整流程交付 MP4＋剪映可编辑草稿，记录 `production.json.export_format: "both"`；开始时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，核对依赖和支持范围。
 - 记录宣传对象、受众、平台与目标时长（默认 20–40 秒，画幅按平台）；每次运行建立独立输出目录。
 - 写脚本前读取 [copy-model.md](references/copy-model.md)：按"结论前置 → 论据 → 痛点对比 → 方案 → 佐证 → CTA"组织，30 秒约 6–8 屏；每句标注屏幕角色、强调词与排版意图。
 - 产出 `hook-script.json`：稳定句 ID、中文文案、英文翻译（需要双语字幕时）、句角色、强调词、预期屏内时长。文案中的数据与承诺来自用户资料或用户给定的方向；不编造具体收益数字、政策条文或截图证据。
@@ -38,7 +39,7 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 
 ## 4. Remotion 制作
 
-- 若交付选择为 `jianying`，按主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md) 将同一 layout-plan 的配音、BGM、图片和文案映射为独立轨道，可跳过 Remotion 整片渲染；`both` 则保留 Remotion 成片/工程并另交剪映草稿。剪映版基础文本可编辑，逐字动效、chip 和复杂包装尚未自动转换，交付时明确差异。
+- 渲染 MP4，同时按剪映工程导出流程将同 revision 的 layout-plan、配音、BGM、图片和文案映射为独立轨道并执行 `export_jianying.py`。剪映版基础文本可编辑，逐字动效、chip 和复杂包装尚未自动转换，交付时明确差异；保留 Remotion 工程供还原动效。
 
 - 按主 Skill [check_env.py](../video-production/scripts/check_env.py) 确认 Node、浏览器、FFmpeg 可用；在独立输出目录建立 Remotion 工程，锁定依赖版本，单一帧时钟驱动所有动画。
 - 组件从 [assets/remotion](assets/remotion) 起步：TypewriterLine、KeywordChips、BilingualSubtitleBar。这些是模板组件，首次实片渲染后按实际效果校准再复用。
@@ -50,8 +51,8 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 ## 5. 验收并交付
 
 - 执行文案核对（画面文字与脚本逐句一致）、同步核对（文字出现与配音对齐）、阅读时间核对（每屏停留 ≥ 阅读所需）、渲染帧检查（首/中/末及每层首现帧）。
-- 交付 `final.mp4`、`hook-script.json`、`layout-plan.json`、`style.json`、工程与 `qc.json`；qc 每项用 `pass / fail / not_checked` 记录方法与证据，存在必检 fail 或 not_checked 时标 `review_required`。
-- 成功答复简述成片位置、时长、脚本结构取舍和验收边界。制作可发布文件不等于向平台发布；仅在用户明确授权发布时进入平台动作。
+- 交付 `final.mp4`、完整 `剪映工程/`、`hook-script.json`、`layout-plan.json`、`style.json`、Remotion 工程与 `qc.json`；执行主 Skill 的双产物检查并记录路径。qc 每项用 `pass / fail / not_checked` 记录方法与证据，存在必检 fail 或 not_checked 时标 `review_required`；任一产物缺失不能宣布完整交付。
+- 成功答复给出 MP4 与剪映草稿目录位置，简述时长、脚本结构取舍和验收边界。制作可发布文件不等于向平台发布；仅在用户明确授权发布时进入平台动作。
 
 ## 验证状态
 

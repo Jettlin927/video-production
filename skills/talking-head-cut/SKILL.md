@@ -7,11 +7,11 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成类型判断后在当前任务进入这里。直接调用时同样执行。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
 
-输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、SRT、可编辑工程和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；ASR 模型与渲染环境仍需探测。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
+输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；ASR 模型与渲染环境仍需探测。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
 
 ## 1. 接收素材并确定执行路线
 
-- 交付形式沿用用户选择，在 `production.json.export_format` 记录 `mp4`、`jianying` 或 `both`。用户要手动调气口/BGM/字幕时，读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，保留源片切段及独立轨道。仅要剪映工程时，后续以工程生成和应用内检查替代整片 MP4 渲染；内容选择、字幕规划与必要 QC 仍执行。
+- 完整流程交付 MP4＋剪映可编辑草稿，在 `production.json.export_format` 记录 `both`。开始时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，检查依赖，保留源片切段及独立字幕、BGM 轨道；两项产物消费同一最终时间轴。
 
 - 记录输入路径、大小、修改时间、媒体时长、帧率/时间基、旋转、分辨率、音轨及色彩信息；原片保持只读，每次运行建立独立输出目录。
 - 只给 raw＋风格时：保留独有论点、例子和顺序，删拍摄废片与确定的重说，保持原声和原速；目标时长随有效内容形成。用户明确要求时才做高光摘选、重排、整体变速或改写式制作。
@@ -68,10 +68,10 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 ## 5. 验收并交付
 
 - 执行内容、连续表达、逐切口音画、字幕、构图和文件检查；校准与全片均增加 PCM→最终编码音频波形延迟比对，具体命令见 [editorial.md](references/editorial.md)。修复固定偏移后重测，不能照抄历史 42.7ms。渲染命令成功只证明产生文件。
-- 交付 `final.mp4`、`final.srt`、工程及依赖锁文件、`style.json`、`edit-plan.json`、`qc.json`。SRT 是文字/时间交换版，字体和动画以工程/MP4 为准。
+- 按剪映导出流程执行 `export_jianying.py`，使用与成片同 revision 的 `edit-plan.json`、字幕及实际使用的附加轨道。交付 `final.mp4`、完整 `剪映工程/`、`final.srt`、原渲染工程及依赖锁文件、`style.json`、`edit-plan.json`、`qc.json`，执行主 Skill 的双产物检查并记录路径。SRT 是文字/时间交换版；剪映基础文字可编辑，未转换的字体和动画差异写入报告。
 - 有补充画面时附 `broll-plan.json`、本地素材和 `media-manifest.json`，保留视觉风格、基准图、原句映射、证据来源及缺口，确认工程实际引用；打包按白名单，排除 `.env`、密钥和带签名 URL 的生成状态文件。逐张对照基准图检查画风，再连播检查语义、阅读时间与返回真人的衔接；实际观看反馈与结构/技术检查分开记录。
 - `qc.json` 每项使用 `pass / fail / not_checked`，记录实际方法、区间和证据。若当前环境不能听审，继续交付可审片版本及待审切口，不以 ASR/静帧冒充自然度通过；存在必检 `fail` 或 `not_checked` 时标为 `review_required`。
-- 成功答复简述成片位置、时长、主要取舍和验收边界。制作可发布文件不等于向平台发布；仅在用户明确授权发布时进入平台动作。
+- 成功答复给出 MP4 与剪映草稿目录位置，简述时长、主要取舍和验收边界。制作可发布文件不等于向平台发布；仅在用户明确授权发布时进入平台动作。
 
 ## 参考成对学习
 

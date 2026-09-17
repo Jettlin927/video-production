@@ -48,9 +48,18 @@ python scripts/bootstrap.py --keep
 
 写入项目 `production.json`：`route`（transcription/talking-head/hook-video/storyboard/asset/existing-edit）、`route_reason`、`inputs`、`style`、`output_dir`、`constraints`。这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
 
-## 公共能力
+## 完整视频的最低交付
 
-- 用户要选择交付形式或回剪映手动调整时，读取 [jianying-export.md](references/jianying-export.md)，在最终渲染前记录 `production.json.export_format`（`mp4` / `jianying` / `both`）。剪映工程保留独立切段、完整原素材、文本字幕和独立 BGM；仅要工程时可跳过整片 MP4 渲染。生成文件、剪映实际打开、人工编辑保存和视听验收分别记录。
+完整视频制作（真人口播、钩子视频、分镜或整片剪辑）统一交付 `final.mp4` 和 `剪映工程/`，在 `production.json` 记录 `export_format: "both"`。进入制作时即读取 [jianying-export.md](references/jianying-export.md)，核对导出依赖与支持范围；无需用户另说“也要工程”。仅转写、单条素材生成和明确的局部修改沿用其任务范围。
+
+最终交付前执行：
+
+1. 锁定同一时间轴 revision，渲染 MP4，并将切段、字幕及实际使用的 BGM/配音/补充画面导出到剪映草稿；原渲染工程可额外交付。
+2. 验证 MP4 可解码、规格与时长正确；草稿附完整素材，原片切段可恢复气口，字幕是可改文字，已用 BGM 为独立音轨。无 BGM 的片子无需为了验收添加音乐，在报告记录未使用。
+3. 在 `production.json.outputs` 记录 `mp4`、`jianying` 两个实际路径及共同的 `revision`，在 `qc.json` 分别记录文件检查、剪映打开、编辑保存和视听结果。任一产物缺失时继续处理或明确阻塞，不能宣布完整交付；应用内未验收保留 `review_required`。
+4. 回复同时给出 MP4 和草稿目录的可访问位置、草稿安装方法及已知样式差异。剪映内后续修改需重新导出 MP4，旧成片不会自动更新。
+
+## 公共能力
 
 - 首次运行、换机器或工具报错时先跑 [scripts/check_env.py](scripts/check_env.py)：它按路线核对 Python、FFmpeg、Node/浏览器、共享 `.env`、字体完整性与磁盘余量，并解析不在 PATH 里的 ffmpeg。加 `--search <目录>` 扩大查找范围，`--write-tools` 记录结果供后续运行复用，`--json` 给机器读。缺依赖时按提示安装，或明确写出缺项；不把缺依赖说成已能制作。
 - 视频/录音需要字幕或文字稿时读取 [asr.md](references/asr.md)。`.env` 已配置时，在用户要求的转写/剪辑范围内用百炼脚本执行；支持 WAV/MP3 上传、词级时码和说话人分离。含画外提示时先确定主角角色与保留词，再剪媒体和重建字幕。ffmpeg 不在 PATH 时按检查脚本解析出的路径传 `--ffmpeg`。
