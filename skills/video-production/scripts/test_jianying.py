@@ -10,7 +10,7 @@ import unittest
 import wave
 
 from bailian_media import load, tool_path
-from export_jianying import export_project, install_project, normalize
+from export_jianying import export_project, find_draft_root, install_project, normalize
 
 
 def plan(path='raw.mp4'):
@@ -27,6 +27,22 @@ def captions():
 
 
 class TimelineTests(unittest.TestCase):
+    def test_custom_draft_location_takes_precedence(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);data=root/'User Data';config=data/'Config';config.mkdir(parents=True)
+            default=data/'Projects'/'com.lveditor.draft';default.mkdir(parents=True)
+            custom=root/'Custom Drafts';custom.mkdir()
+            value=str(custom).replace('\\','\\\\')
+            (config/'globalSetting').write_text('[General]\ncurrentCustomDraftPath='+value,encoding='utf-8')
+            self.assertEqual(find_draft_root(data),custom)
+            custom.rmdir()
+            with self.assertRaises(FileNotFoundError): find_draft_root(data)
+
+    def test_default_draft_location_when_setting_absent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data=Path(temp);default=data/'Projects'/'com.lveditor.draft';default.mkdir(parents=True)
+            self.assertEqual(find_draft_root(data),default)
+
     def test_cuts_keep_source_handles(self):
         t=normalize(plan(),captions())
         clips=t['tracks']['原片与同期声']

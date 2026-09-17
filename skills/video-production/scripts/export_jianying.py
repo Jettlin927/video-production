@@ -4,9 +4,11 @@ No rendering, paid calls, UI control or modification of existing drafts.
 Use --install PACKAGE --draft-root DIRECTORY to copy and rebase a generated package.
 """
 import argparse
+import configparser
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -247,6 +249,24 @@ def install_project(package, draft_root):
     return out
 
 
+def find_draft_root(user_data=None):
+    """Read the current Windows Jianying setting instead of assuming its default root."""
+    if user_data is None:
+        local = os.environ.get('LOCALAPPDATA')
+        if not local:
+            raise ValueError('Cannot detect Windows Jianying; specify --draft-root')
+        user_data = Path(local) / 'JianyingPro' / 'User Data'
+    user_data = Path(user_data)
+    settings = configparser.ConfigParser(interpolation=None)
+    settings.read(user_data / 'Config' / 'globalSetting', encoding='utf-8-sig')
+    custom = settings.get('General', 'currentCustomDraftPath', fallback='').strip()
+    # Qt INI stores Windows path separators as doubled backslashes.
+    path = Path(custom.replace('\\\\', '\\')) if custom else user_data / 'Projects' / 'com.lveditor.draft'
+    if not path.is_dir():
+        raise FileNotFoundError('Configured draft root is missing; check Jianying Settings or pass --draft-root: ' + str(path))
+    return path
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     mode = p.add_mutually_exclusive_group(required=True)
@@ -259,9 +279,8 @@ def main():
     p.add_argument('--name')
     a = p.parse_args()
     if a.install:
-        if not a.draft_root:
-            p.error('--install requires --draft-root')
-        result = {'installed': str(install_project(a.install, a.draft_root)), 'app_open': 'not_checked'}
+        root = a.draft_root if a.draft_root else find_draft_root()
+        result = {'installed': str(install_project(a.install, root)), 'app_open': 'not_checked'}
     else:
         if not a.out:
             p.error('--plan requires --out')
