@@ -1,0 +1,4 @@
+interface:
+  display_name: "视频制作"
+  short_description: "按用户素材与目标选择口播、分镜或素材生成流程，统一调用百炼与字幕字体资源"
+  default_prompt: "使用 $video-production，根据我提供的素材和风格判断视频类型，选择合适流程并制作可编辑的视频与实际质检结果。"

@@ -1,0 +1,184 @@
+{
+  "files": [
+    {
+      "family": "source-han-sans",
+      "path": "source-han-sans/SourceHanSansSC-Light.otf",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Light.otf",
+      "commit": "a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2",
+      "bytes": 16460112,
+      "sha256": "b6dfc945aae0daf9b15019f59c2f7b18d17da3b92f00c3ec32fb5f0333696d9c",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "source-han-sans",
+      "path": "source-han-sans/SourceHanSansSC-Bold.otf",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Bold.otf",
+      "commit": "a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2",
+      "bytes": 16963428,
+      "sha256": "df2b90f5bcc6d01dfc964cec5f6d535d6b6aebd26ed7fd79a9c1b3f2112fcb6b",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "source-han-sans",
+      "path": "source-han-sans/LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/LICENSE.txt",
+      "commit": "a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2",
+      "bytes": 4463,
+      "sha256": "fcac737e761ec63dbfbdce11030a1780161920d80315edba9c8beff1c2bac5a2",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "source-han-serif",
+      "path": "source-han-serif/SourceHanSerifSC-Regular.otf",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-Regular.otf",
+      "commit": "7889f11bf31170b5d092a083b357c8c8130f89e0",
+      "bytes": 24543332,
+      "sha256": "78aa7a328fd974df2d688c8a9fd74a33d8334dfa84ab24d9d11efb2ffc464117",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "source-han-serif",
+      "path": "source-han-serif/SourceHanSerifSC-Bold.otf",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-Bold.otf",
+      "commit": "7889f11bf31170b5d092a083b357c8c8130f89e0",
+      "bytes": 25521732,
+      "sha256": "706b8c0de2deff6cbc0c87e2cdedfd33a78b7ffd76cebb4549012f197ba611fe",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "source-han-serif",
+      "path": "source-han-serif/LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/LICENSE.txt",
+      "commit": "7889f11bf31170b5d092a083b357c8c8130f89e0",
+      "bytes": 4463,
+      "sha256": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "lxgw-wenkai",
+      "path": "lxgw-wenkai/LXGWWenKai-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/lxgw/LxgwWenKai/50f4b182415a8c33d9a456df220b66a284e2509b/fonts/TTF/LXGWWenKai-Regular.ttf",
+      "commit": "50f4b182415a8c33d9a456df220b66a284e2509b",
+      "bytes": 25575676,
+      "sha256": "39ad71264b588165b469e35e6afb162a378dacd1f95348160240ba9038ac3009",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "lxgw-wenkai",
+      "path": "lxgw-wenkai/OFL.txt",
+      "source": "https://raw.githubusercontent.com/lxgw/LxgwWenKai/50f4b182415a8c33d9a456df220b66a284e2509b/OFL.txt",
+      "commit": "50f4b182415a8c33d9a456df220b66a284e2509b",
+      "bytes": 5171,
+      "sha256": "1a25e35da1031c6c3436fde545bb9cb5aca954e9873afe510c834b8b79bd21a0",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "notosanssc",
+      "path": "notosanssc/NotoSansSC[wght].ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 17772300,
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "notosanssc",
+      "path": "notosanssc/OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/notosanssc/OFL.txt",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 4388,
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "notosanssc",
+      "path": "notosanssc/METADATA.pb",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/notosanssc/METADATA.pb",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 1296,
+      "sha256": "c6c4bdb785793b2de1da177caeeffcd0c90d7680bdab2de8f88ab45007bc59bc",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolqingkehuangyou",
+      "path": "zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 8328684,
+      "sha256": "54f0c0df4308cd74cd0f2fd3494ae054dbc4a1fd6fa7d71f4807eb4cdd8b4136",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolqingkehuangyou",
+      "path": "zcoolqingkehuangyou/OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolqingkehuangyou/OFL.txt",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 4419,
+      "sha256": "f1bce31b817dee01c1e4ef8bc45d8ecb95f01f4abbf0a985007cb3cd0fd8123d",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolqingkehuangyou",
+      "path": "zcoolqingkehuangyou/METADATA.pb",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolqingkehuangyou/METADATA.pb",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 687,
+      "sha256": "254f65c558dd29fdabcec269174fb5d80fbd36350a8df729a85686163840f74f",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "mashanzheng",
+      "path": "mashanzheng/MaShanZheng-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/mashanzheng/MaShanZheng-Regular.ttf",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 5857936,
+      "sha256": "6d2546bb189c732a8ca29af9e22457b152387d158aa459e4ac2ce1e51788b7fb",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "mashanzheng",
+      "path": "mashanzheng/OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/mashanzheng/OFL.txt",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 4397,
+      "sha256": "d7bdb1cee215b689e23c2f95672a6084c790542170648267a55114103d756a08",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "mashanzheng",
+      "path": "mashanzheng/METADATA.pb",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/mashanzheng/METADATA.pb",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 844,
+      "sha256": "7e21912b6659b58694f0b999e69ad5a95da12fdc453565059727a2467e525f84",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolkuaile",
+      "path": "zcoolkuaile/ZCOOLKuaiLe-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 1514968,
+      "sha256": "812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolkuaile",
+      "path": "zcoolkuaile/OFL.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolkuaile/OFL.txt",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 4398,
+      "sha256": "538078469839b4a2e7ad22bef4ebe41681a4e53749bb2a072144024f1d6d703d",
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "zcoolkuaile",
+      "path": "zcoolkuaile/METADATA.pb",
+      "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zcoolkuaile/METADATA.pb",
+      "commit": "809e4d8b8d7e9364a914909bb777679606c178b8",
+      "bytes": 671,
+      "sha256": "fc1f48f54521ac41b8aa59d5b44c6b3c7cb7d24b9d4d499564c9febd01f84769",
+      "license": "OFL-1.1"
+    }
+  ]
+}

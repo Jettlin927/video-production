@@ -1,0 +1,4 @@
+interface:
+  display_name: "真人口播剪辑"
+  short_description: "从原始口播与风格定调出发，处理重拍接句并制作可审片的动态中文字幕视频"
+  default_prompt: "使用 $talking-head-cut，将我提供的 raw 真人口播视频按指定风格剪辑，交付字幕视频、可编辑工程和实际质检结果。"
