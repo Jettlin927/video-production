@@ -24,18 +24,25 @@ Claude Code 用户将 `-a codex` 换成 `-a claude-code`。其他 Agent 请按�
 
 ## 首次配置
 
-在安装后的 `video-production` Skill 目录执行：
+安装 Skill 后，先确定当前项目根目录，再在安装后的 `video-production` Skill 目录执行：
 
 ```shell
-python scripts/bootstrap.py --keep
+python scripts/check_env.py --project-dir <project-root> --json --write-tools
 ```
 
-这一步检查环境并记录本机工具路径，不安装软件，也不调用付费模型。`--keep` 保留引导脚本，便于后续维护。缺少可安装工具时，核对输出后再运行 `python scripts/bootstrap.py --install --keep`；Node、浏览器、Python 和 API 配置等缺项仍按提示处理。
+项目模式会把 FFmpeg/ffprobe 放在 `<project-root>/video-production-deps/ffmpeg/bin`，并把路径记录在 `<project-root>/video-production-deps/tools.json`。它不会使用其他项目或机器其他位置的 FFmpeg 把检查强行变绿。若报告的 `auto_fixable` 有内容，执行：
+
+```shell
+python scripts/check_env.py --project-dir <project-root> --install --write-tools
+python scripts/check_env.py --project-dir <project-root> --json --write-tools
+```
+
+Node、浏览器、Python 和 API 配置等缺项仍按报告处理。项目依赖目录不进入仓库，别人更新代码后在自己的项目根目录重新运行这一步即可。
 
 将 `.env.example` 复制为 `.env`，填写自己的 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_BASE_URL`（对应业务空间的 HTTPS API 地址，以 `/api/v1` 结尾）。模型名称需与自己的账号权限匹配。真实 `.env` 仅保存在本机。
 
 ```shell
-python scripts/check_env.py --deep
+python scripts/check_env.py --project-dir <project-root> --deep --json --write-tools
 ```
 
 建议使用 Python 3.12。视频处理需要 FFmpeg/ffprobe；Remotion 路线需要 Node.js、浏览器和工程依赖；部分分析需要 NumPy/SciPy 等 Python 包。依赖以检查结果和所选流程为准。本仓库包含约 136 MiB 的字体等资源，不包含模型权重、原始视频或成片。
@@ -81,7 +88,7 @@ Agent 在 `production.json` 记录 `export_format: "both"`、两个实际输出�
 npx skills update video-production talking-head-cut hook-video -g
 ```
 
-更新后检查并恢复本机 `.env`，再运行 `check_env.py`。目录替换可能丢失本机配置或改动，不要把个人配置与待发布文件混用。以上安装/更新语法依据 Skills CLI 文档；各宿主的实际发现与运行情况需在目标环境验证。
+更新后检查并恢复本机 `.env`，再用当前项目根目录运行 `check_env.py --project-dir <project-root>`。项目内的 `video-production-deps/` 不由 Skill 更新覆盖，也不需要提交到仓库。目录替换可能丢失本机配置或改动，不要把个人配置与待发布文件混用。以上安装/更新语法依据 Skills CLI 文档；各宿主的实际发现与运行情况需在目标环境验证。
 
 ## 维护与发布
 
