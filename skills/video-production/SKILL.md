@@ -74,6 +74,7 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --json
 - 环境门只跑一次；主 Skill 将同一份结果传给子 Skill。子 Skill 不重复探测 PATH、缓存、浏览器、字体或模型，也不重新寻找 FFmpeg。
 - 先用已有脚本的 `--help`、现有产物和 JSON/TSV 小查询确认接口。只有命令帮助和产物不足以解释错误时，才按符号或行范围读取源码；默认不整篇读取 `.py`/`.tsx`。
 - 大型转写只生成一次紧凑索引（如 utterance/word TSV），后续内容选择、气口和字幕都复用索引；不要在每个阶段重新读取完整转写或重新写一套 dump 脚本。
+- 小范围画面验证使用 `scripts/sample_frames.py --ranges START:END,...`；它按每个时间窗口 seek 后再 concat。不要用全片 `select` 只取少数帧，否则仍会顺序解码整个 HEVC 文件。
 - 每个任务只保留一条 canonical 时间轴和一份 revision；脚本输出是下一步的输入，失败时修复该输入或记录阻塞，不通过旁路工程重新建一条时间轴。
 
 ## 完整视频的最低交付
