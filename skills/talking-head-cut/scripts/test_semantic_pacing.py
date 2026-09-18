@@ -6,7 +6,7 @@ from map_words import remap
 
 class SemanticPacingTests(unittest.TestCase):
     def fixture(self):
-        plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5},'duration_frames':50,
+        plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5,'fps':{'num':50,'den':1}},'duration_frames':50,
               'segments':[{'id':'a','source_in_s':1.,'source_out_s':2.,'final_in_s':0.,'final_out_s':1.},
                           {'id':'b','source_in_s':3.,'source_out_s':4.,'final_in_s':1.,'final_out_s':2.}]}
         source={'revision':'asr','words':[{'id':'1','source_start_s':1.1,'source_end_s':1.98,'text':'没有难度'},
@@ -27,8 +27,24 @@ class SemanticPacingTests(unittest.TestCase):
         self.assertEqual(revised['duration_frames'],50)
         for seg in revised['segments']:
             self.assertLessEqual(abs(seg['final_in_frame']/25-seg['final_in_s']),.020001)
-            phase=(seg['source_in_frame']/25-seg['source_in_s'])-(seg['final_in_frame']/25-seg['final_in_s'])
-            self.assertLessEqual(abs(phase),.020001)
+            self.assertEqual(seg['source_in_frame'],round(seg['source_in_s']*50))
+            self.assertEqual(seg['source_out_frame'],round(seg['source_out_s']*50))
+
+    def test_source_and_output_frame_rates_are_independent(self):
+        plan,source,words,decisions=self.fixture()
+        revised,_=apply(plan,words,decisions)
+        self.assertEqual(revised['fps'],{'num':25,'den':1})
+        self.assertEqual(revised['source']['fps'],{'num':50,'den':1})
+        for seg in revised['segments']:
+            self.assertEqual(seg['source_in_frame'],round(seg['source_in_s']*50))
+            self.assertEqual(seg['source_out_frame'],round(seg['source_out_s']*50))
+            self.assertEqual(seg['source_frame_count'],seg['source_out_frame']-seg['source_in_frame'])
+
+    def test_missing_source_frame_rate_is_rejected(self):
+        plan,source,words,decisions=self.fixture()
+        plan['source'].pop('fps')
+        with self.assertRaisesRegex(ValueError,'source.fps'):
+            apply(plan,words,decisions)
 
     def test_categories_and_internal_split(self):
         plan,source,words,decisions=self.fixture()

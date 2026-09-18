@@ -220,7 +220,7 @@ if __name__ == '__main__':
     p.add_argument('--source-offset', type=float, default=0)
     p.add_argument('--out', required=True, type=Path)
     p.add_argument('--env', type=Path, default=ROOT / '.env')
-    p.add_argument('--ffmpeg', default=None, help='Defaults to the resolved ffmpeg (see bootstrap.py)')
+    p.add_argument('--ffmpeg', default=None, help='Defaults to the resolved ffmpeg (see check_env.py/tools.json)')
     p.add_argument('--execute', action='store_true')
     p.add_argument('--audio-format', choices=['wav', 'mp3'], default='wav', help='Prepared upload format; WAV avoids lossy re-encoding')
     p.add_argument('--no-diarization', action='store_true', help='Disable speaker labels; also resumes legacy non-diarized tasks')

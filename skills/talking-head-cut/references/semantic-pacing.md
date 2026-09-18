@@ -50,7 +50,7 @@ python scripts/map_words.py --transcript run/transcript.source.json --plan run/e
 
 每个片段记录源区间和成片区间；保持原速，禁止为凑气口拉伸字音。需要30ms而输出25fps时，使用 `sample_audio_cumulative_video`：音频按48kHz采样剪切，成片字幕跟随精确音频时码；画面切点按累计成片时间取最近帧，不能逐段取整后累加。
 
-音频消费 `source_in_s/source_out_s` 或对应的源采样区间；图片视频消费 `final_in_frame/duration_frames/source_in_frame`。源视频帧相位误差上限为半帧，画面切换与音频切换也可能相差半帧；逐切口检查嘴型。`final_in_s/out_s` 表示音频时刻，不能假设它始终等于 `final_in_frame/out_frame ÷ fps`。最终只在片尾补不足一帧的尾部，不在气口补时长。
+音频消费 `source_in_s/source_out_s` 或对应的源采样区间；视频消费 `final_in_frame/duration_frames` 和按 `source.fps` 计算的 `source_in_frame/source_out_frame`。源视频帧相位误差上限为半个源帧，画面切换与音频切换也可能相差半帧；逐切口检查嘴型。`final_in_s/out_s` 表示音频时刻，不能假设它始终等于 `final_in_frame/out_frame ÷ source.fps`。最终只在片尾补不足一帧的尾部，不在气口补时长。
 
 对新切口可加不进入保留字音的约3ms淡入/淡出；不得改变计划的总间隔。若渲染器造成音频固定偏移，输出无声画面并复用规范 PCM 混流，再测同步；不能把历史偏移值写死。
 

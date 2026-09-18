@@ -7,7 +7,7 @@ from map_words import remap
 
 class Tests(unittest.TestCase):
     def test_pause_frame_grid_and_word_margins(self):
-        plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5},'segments':[
+        plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5,'fps':{'num':25,'den':1}},'segments':[
             {'id':'a','source_in_s':1.,'source_out_s':2.,'final_in_s':0.,'final_out_s':1.},
             {'id':'b','source_in_s':3.,'source_out_s':4.,'final_in_s':1.,'final_out_s':2.}]}
         words={'revision':'r','words':[
@@ -23,6 +23,20 @@ class Tests(unittest.TestCase):
         _,report=tighten(plan,words)
         self.assertAlmostEqual(report['after']['mean_ms'],20)
         self.assertEqual(report['changed_seams'],0)
+
+    def test_pause_plan_keeps_source_and_output_frame_grids_separate(self):
+        plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5,'fps':{'num':50,'den':1}},'segments':[
+            {'id':'a','source_in_s':1.,'source_out_s':2.,'final_in_s':0.,'final_out_s':1.},
+            {'id':'b','source_in_s':3.,'source_out_s':4.,'final_in_s':1.,'final_out_s':2.}]}
+        words={'revision':'r','words':[
+            {'id':'1','instance_id':'a','source_start_s':1.1,'source_end_s':1.9,'word':'完整'},
+            {'id':'2','instance_id':'b','source_start_s':3.06,'source_end_s':3.9,'word':'原声'}]}
+        revised,_=tighten(plan,words)
+        for segment in revised['segments']:
+            self.assertEqual(segment['source_in_frame'],round(segment['source_in_s']*50))
+            self.assertEqual(segment['source_out_frame'],round(segment['source_out_s']*50))
+            self.assertEqual(segment['final_in_frame'],round(segment['final_in_s']*25))
+            self.assertEqual(segment['final_out_frame'],round(segment['final_out_s']*25))
 
     def test_rolling_lifetimes_and_group_reset(self):
         words={'revision':'r','words':[{'id':str(i),'instance_id':'k','text':str(i),

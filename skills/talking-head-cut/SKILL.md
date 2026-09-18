@@ -5,22 +5,28 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 # 真人口播剪辑
 
-本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成类型判断后在当前任务进入这里。直接调用时同样执行。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
+本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成环境门和类型判断后在当前任务进入这里。直接调用时，若当前任务没有环境报告，先执行主 Skill 的 `scripts/check_env.py --project-dir <project-root> --json --write-tools` 一次。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
 
-输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；ASR 模型与渲染环境仍需探测。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
+输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；运行环境继承主 Skill 的唯一环境门。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
 
 ## 1. 接收素材并确定执行路线
 
-- 完整流程交付 MP4＋剪映可编辑草稿，在 `production.json.export_format` 记录 `both`。开始时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，检查依赖，保留源片切段及独立字幕、BGM 轨道；两项产物消费同一最终时间轴。
+- 完整流程交付 MP4＋剪映可编辑草稿，在 `production.json.export_format` 记录 `both`。开始完整视频路线时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，按环境门报告确认导出依赖，保留源片切段及独立字幕、BGM 轨道；两项产物消费同一最终时间轴。
 
 - 记录输入路径、大小、修改时间、媒体时长、帧率/时间基、旋转、分辨率、音轨及色彩信息；原片保持只读，每次运行建立独立输出目录。
 - 只给 raw＋风格时：保留独有论点、例子和顺序，删拍摄废片与确定的重说，保持原声和原速；目标时长随有效内容形成。用户明确要求时才做高光摘选、重排、整体变速或改写式制作。
-- 把风格定调写成 `style.json`：语气、节奏、字幕层级、强调色、标题策略、人物构图、动画强度、音乐、补充画面、输出规格。缺省项按素材作可逆选择并简述，无需逐项询问。采用目录中的参考成片或“白黄宋体”时读 [styles.md](references/styles.md)。
-- 探测本机已有工具、ASR 模型、中文字体和渲染环境；固定本次工具版本。首次使用主 Skill 的 [bootstrap.py](../video-production/scripts/bootstrap.py) 时加 `--keep` 保留引导脚本，之后用 [check_env.py](../video-production/scripts/check_env.py) 拿本机依赖与各路线可用性，选择路线时读 [backends.md](references/backends.md)。ffmpeg/ffprobe 不在 PATH 时用检查脚本解析出的路径传给脚本，不假定 `ffmpeg` 可直接调用。只选择一个最终时间轴和渲染后端，避免三套工程分别修改字幕。
-- 开始时记录可用听审通道及接管方式。工具不在 PATH 时，再检查已有项目/工具缓存，避免每次重新安装和下载；安装与模型记录版本、位置和哈希。
-- 首次运行先以 20–40 秒包含重说、接句和强调字幕的片段贯通工具链，核对成功后继续全片。校准样片不是强制用户审批点。工具不可用时完成不依赖它的素材清单、风格和剪辑设计，明确缺失项；不把缺少依赖的任务说成剪辑完成。
+- 把风格定调写成 `style.json`：语气、节奏、字幕层级、强调色、标题策略、人物构图、动画强度、音乐、补充画面、输出规格。缺省项按素材作可逆选择并简述，无需逐项询问。用户提供参考成片或字体样例时才读 [styles.md](references/styles.md)。
+- 主 Skill 的环境门已给出本次可用路线、工具绝对路径和版本；直接消费 `check_env.py --project-dir <project-root> --json --write-tools` 的结果，使用项目 `video-production-deps/tools.json`，不再探测 PATH、递归搜索磁盘或检查其他项目缓存。模型选择只在已有路线未 ready 时处理，并记录实际采用的模型/路径。
+- 开始时记录可用听审通道及接管方式。只选择一个最终时间轴和渲染后端，避免三套工程分别修改字幕。
+- 仅在渲染后端或依赖组合尚未有可复用证据时，先用 20–40 秒包含重说、接句和强调字幕的片段校准一次；已有同版本通过证据时直接进入全片。校准样片不是强制用户审批点。工具不可用时完成不依赖它的素材清单、风格和剪辑设计，明确缺失项；不把缺少依赖的任务说成剪辑完成。
 
 完成条件：素材可读取、风格已具体化、输入/输出边界清楚、执行路线有当前可调用证据。
+
+## 中间链路约束
+
+- 环境检查、工具解析和安装只由主 Skill 完成一次；本 Skill 直接使用其结果和项目 `video-production-deps/` 中的 FFmpeg。
+- 先运行脚本的 `--help` 并查看已有 JSON/TSV 产物确认接口。只有帮助和产物不足以定位故障时，才按目标函数或行范围读取源码；源码默认不整篇载入。
+- 转写完成后生成一次可检索的 utterance/word 索引，内容选择、接缝、气口和字幕阶段都复用它；阶段之间传递文件，不反复重读完整转写。
 
 ## 2. 建立可追溯的原声文字稿
 
@@ -51,15 +57,15 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 时间映射、交付结构与质检细则见 [timeline-qc.md](references/timeline-qc.md)，在首次应用剪辑前读取。
 
-- 用一份 `edit-plan.json` 记录 source 区间与 final 区间；按实际应用结果生成新 revision。音视频、字幕、标题、动画和补充画面都消费该 revision。
-- 首次规划补充画面时读取 [visual-planning.md](../video-production/references/visual-planning.md)，并从 [visual-styles.md](../video-production/references/visual-styles.md) 选一套风格预设。根据完整保留文稿逐段判断真实证据、解释画面和节奏空镜，记录插入或跳过理由；连续约20–30秒无补充画面时检查候选，普通图片约2–3秒，落在语义位置并保护关键真人表达。整片生成图片锁定同一预设与画幅（竖屏成片出竖幅），首张合格图作为后续审查基准。实拍口播片的默认是写实商务纪实，不是卡通插画。
+- 用一份 `edit-plan.json` 记录 source 区间与 final 区间；`source.fps` 必须记录源视频真实帧率，`fps` 记录成片帧率；已有计划缺少 `source.fps` 时重新探测原片并停在计划阶段，不能复制成片 `fps` 作为替代。按实际应用结果生成新 revision。运行 `scripts/check_timeline.py --plan edit-plan.json` 后才进入渲染。音视频、字幕、标题、动画和补充画面都消费该 revision。
+- 用户明确要求补充画面时，读取 [visual-planning.md](../video-production/references/visual-planning.md)，并从 [visual-styles.md](../video-production/references/visual-styles.md) 选一套风格预设。根据完整保留文稿逐段判断真实证据、解释画面和节奏空镜，记录插入或跳过理由；连续约20–30秒无补充画面时检查候选，普通图片约2–3秒，落在语义位置并保护关键真人表达。整片生成图片锁定同一预设与画幅（竖屏成片出竖幅），首张合格图作为后续审查基准。没有该要求时默认不新增补充画面。
 - 按 [editorial.md](references/editorial.md) 逐句写 takeaway、完整重点短语及理由，再用 `scripts/caption_pages.py` 执行短语分页和词覆盖检查。重点来自本句判断、数字、对比和行动，不能交由全局名词表匹配。普通重点优先白色粗体/字号，主题色优先承担主题和列表结构；渲染器不得覆盖逐句选择。
 - 结合主题、列表、对比与结论设计顶部层及单/双行层级，逐项按原声进入。人物曝光、白平衡、肤色按实际需要温和修正并对照，不把原片直出自动当作视觉完成。
 - 根据实际人物构图设置字幕框及平台安全区域，检查字体真实加载、字符覆盖和可见字高。常驻标题只有风格需要时才添加；标题从素材论点提炼，避免增加原声没有的承诺。
 - 字体选择读取主 Skill 的 [fonts.md](../video-production/references/fonts.md)，按正文、短重点和风格选择内置黑体、宋体、文楷或 Google Fonts 文件并等待实际加载；装饰字体优先短重点，不替换整片长字幕。依照真实字体重新检查大小/宽度，不能依赖操作系统字体名碰运气。
 - 动画使用固定帧时钟，随重音落点出现，在对应字幕区间内收完；口播时长优先于动画时长。
 - 需要两行滚动字幕、调整字幕/重点存在时间或用户提供字体截图时，读 [rolling-subtitles.md](references/rolling-subtitles.md)。紧凑口播采用语义短语行：讲到下一行时，旧行上移、新行在下方出现；重点在对应词开始时出现并随行退出。使用 rolling_captions.py 与 RollingCaptionLayer，不按固定20字拆句；正文和重点可分别指定字体。
-- 当前用户已选择百炼生成补充画面。仅有 raw 时也可规划图片与视频，按静态概念/动态过程选择，读取主 Skill 的 [generated-media.md](../video-production/references/generated-media.md) 后执行生成→下载→内容审查→时间线插入→实际渲染。使用主 Skill `video-production/.env` 的 Key 和用户指定的 `qwen-image-3.0` / `wan3.0-video`，不能擅自换模型；缺 Key 时完成清单与本地校验，列明真实调用未验。其他用户/任务沿用其生成与费用授权范围。
+- 用户明确授权生成补充画面时，按静态概念/动态过程选择，读取主 Skill 的 [generated-media.md](../video-production/references/generated-media.md) 后执行生成→下载→内容审查→时间线插入→实际渲染。使用主 Skill 的 `.env` 和用户指定的模型，不能擅自换模型；缺 Key 时完成清单与本地校验，列明真实调用未验。没有明确授权时不调用付费生成接口。
 - 音乐和生成视频声音不能抢占口播，补充视频默认静音；示意素材不当作真实截图或事件证据。保护人物的关键结论、表情和收尾，不用素材填满全片。
 - 后续任何剪辑变动均重建映射及字幕，再渲染受影响片段；不在旧 SRT 上凭感觉平移多处时间。
 

@@ -33,7 +33,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--media', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True, help='Output .wav or .mp3 file')
-    p.add_argument('--ffmpeg', default=None, help='Defaults to the resolved ffmpeg (see bootstrap.py)')
+    p.add_argument('--ffmpeg', default=None, help='Defaults to the resolved ffmpeg (see check_env.py/tools.json)')
     a = p.parse_args()
     try:
         print(json.dumps(prepare(a.media, a.out, a.ffmpeg), ensure_ascii=False))

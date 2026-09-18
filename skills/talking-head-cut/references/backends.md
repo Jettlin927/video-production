@@ -4,9 +4,9 @@
 
 ## 路线选择
 
-1. **OpenChatCut 可用且有当前项目工具连接**：优先用它保管素材、逐字稿和可撤销的剪辑；样式足够时直接由它导出。其预览/导出使用 Remotion，通常不必另建一个 Remotion 工程。
-2. **需要独立可复用模板或 OpenChatCut 无可用连接**：Agent＋已有本地 ASR/VAD＋规范剪辑计划，选择 Remotion 作为最终工程。剪辑执行与字幕映射须落实，只有模板不能宣称已经剪好口播。
-3. **环境已有 HyperFrames 或选用 HTML/CSS 模板**：它可承担转写与最终字幕包装；使用相同剪辑计划，不额外建立一套不同的内容取舍。
+1. **默认路线**：使用本 Skill 已有的 ASR/剪辑计划脚本和当前项目已有的 Remotion 工程/渲染器；它们是默认执行链，不需要比较或安装替代工具。
+2. **OpenChatCut**：只有当前项目已经提供可调用连接，或用户明确指定时才使用；通过它的当前工具/API 列表确认目标工程，不为寻找它递归扫描机器。
+3. **HyperFrames/其他 HTML 工具**：只有用户明确指定或当前项目已有可调用连接时才使用；否则不创建第二套包装路线。剪辑执行与字幕映射须落实，只有模板不能宣称已经剪好口播。
 
 OpenChatCut 接 Remotion 的自定义外部工程不是已验证即插即用接口；需要时先做短片交接试验。可采用不烧字幕的粗剪中间文件＋final 时间轴字幕，再由一个渲染器包装，记录中间文件时间基与编码损失。粗剪 MP4 无法恢复源素材编辑能力，须保留 OpenChatCut 工程/源区间计划。
 
@@ -20,7 +20,7 @@ HyperFrames 作为 Remotion 工程的局部图解素材来源也是可选设计�
 - [transcript-tools.ts](https://github.com/0xsline/OpenChatCut/blob/607e0fcc2b755a92a659deb54305ba8164930ae3/src/agent/tools/transcript-tools.ts)：`manage_transcript fix` 只修文字/说话人，不剪原声；`clean_script` 处理指定清理及停顿规则。
 - [silence-tools.ts](https://github.com/0xsline/OpenChatCut/blob/607e0fcc2b755a92a659deb54305ba8164930ae3/src/agent/tools/silence-tools.ts)：信号静音分析和裁剪执行；检测结果不是语义决策。
 
-执行时先读实际工具列表、工程状态与版本，确认针对目标工程。语义删改用 `read_script`→编辑 `timeline.md`→`apply_script`。具体停顿可通过 `read_script({showSilence:true})` 暴露标记后调整，应用后读回工程确认。
+使用 OpenChatCut 时，先通过它的当前工具/API 列表确认目标工程，再用 `read_script`→编辑 `timeline.md`→`apply_script`。具体停顿可通过 `read_script({showSilence:true})` 暴露标记后调整，应用后读回工程确认。命令行工具、FFmpeg 和浏览器路径由主 Skill 的环境门提供，不在这里重新发现。
 
 批量 `clean_script` 适合有明确规则的机械清理。首次使用需显式选择清理范围及当前 schema 的参数，避免默认值意外同时删语气词；重拍、反问、情绪重复由 Agent 判断。字幕分屏使用显示层机制，不能通过修改原声转录来控制换行。
 
@@ -52,4 +52,4 @@ npx hyperframes transcribe 'raw.mp4' --model small --language zh
 
 ## 能力缺口处理
 
-先复用已存在依赖；新装工具、下载模型或云转写根据当前任务授权和宿主权限执行。云 ASR、LLM 和媒体生成是不同服务，分别确认用途及数据路径；用户给 LLM Key 不代表已配置转写。未授权上传时走本地路线。没有可运行路线时交付具体缺项和可执行计划，不生成虚假的转写、工具结果或质检通过项。
+依赖安装与工具解析由主 Skill 的 `check_env.py` 环境门负责；本参考只处理路线选择和路线特有的模型/服务决策。云 ASR、LLM 和媒体生成是不同服务，分别确认用途及数据路径；用户给 LLM Key 不代表已配置转写。未授权上传时走本地路线。没有可运行路线时交付具体缺项和可执行计划，不生成虚假的转写、工具结果或质检通过项。

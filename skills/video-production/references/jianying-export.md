@@ -4,7 +4,7 @@
 
 ## 双产物交付流程
 
-在 `production.json` 写入 `export_format: "both"`。制作开始时检查本节依赖和支持范围，最终时间轴确定后，从同一个 revision 分别渲染 `final.mp4` 和生成 `剪映工程/`。已有且通过检查的同版本产物可复用。导出失败时修复或报告阻塞，不自动降为只交 MP4。
+在 `production.json` 写入 `export_format: "both"`。制作开始时读取本节支持范围，并消费主 Skill 环境门给出的导出依赖状态；最终时间轴确定后，从同一个 revision 分别渲染 `final.mp4` 和生成 `剪映工程/`。已有且通过检查的同版本产物可复用。导出失败时修复或报告阻塞，不自动降为只交 MP4。
 
 交付目录至少包含 MP4 和完整草稿包；`production.json.outputs` 记录 `mp4`、`jianying` 两个路径及共同的 `revision`。依次完成下文的生成、素材校验和应用验收，保留样式差异说明。仅转写、单条素材生成及明确的局部修改按原任务范围执行。
 
@@ -37,7 +37,7 @@ python -m pip install -r scripts/requirements-jianying.txt
 
 ## 真人口播输入
 
-使用当前 `edit-plan.json`：`revision`、`source.path/duration_s`、`segments`、`fps`、`duration_frames`，并从本次输出规格补入 `width`、`height`。各段保留源 `source_in_s/out_s` 和最终 `final_in_s/out_s`。不为导出重新剪辑或另造一条时间轴。
+使用当前 `edit-plan.json`：`revision`、`source.path/duration_s/fps`、`segments`、成片 `fps`、`duration_frames`，并从本次输出规格补入 `width`、`height`。源帧字段按 `source.fps`，成片帧字段按成片 `fps`；二者不同是正常情况。各段保留源 `source_in_s/out_s` 和最终 `final_in_s/out_s`。不为导出重新剪辑或另造一条时间轴。
 
 字幕输入是 `caption_pages.py` 产出的 JSON（`revision`、`fps`、`captions[].start_frame/end_frame/lines`），也支持 `rolling_captions.py` 的 `lines[]` 结构：按每行说话起止生成独立文本，滚动动画和前句叠行不自动转换。不是把已有烧录字幕视频当字幕层。没有字幕时省略参数；有字幕但没有可编辑文字/时码时先补齐。旧计划中的 `source.source_path` 与 `source.path` 均可读取。
 

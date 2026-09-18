@@ -19,19 +19,25 @@ from visual_plan import (generated, styled_prompt, validate_visual_plan, review_
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Populated by bootstrap.py or `check_env.py --install`; shared by every skill so a
-# downloaded ffmpeg is not duplicated into each package that gets copied around.
+# Populated by `check_env.py --install` in compatibility mode. Project runs can point
+# this resolver at VIDEO_PRODUCTION_PROJECT_DIR and keep media tools with the project.
 INSTALL_DIR = Path.home() / '.agents' / 'skills' / '.tools' / 'bin'
 
 
 def tool_path(name):
     """Absolute path to a CLI tool this skill shells out to.
 
-    Mirrors check_env.py's precedence: explicit env var -> PATH -> the shared install dir ->
-    the path remembered in scripts/tools.json. When nothing resolves, the bare name is
-    returned so callers keep their previous behaviour and fail with the usual OS error.
+    Project-local media tools -> explicit env var -> PATH -> shared install dir -> remembered
+    path. When nothing resolves, the bare name is returned so callers keep their previous
+    behaviour and fail with the usual OS error.
     """
     exe = '.exe' if os.name == 'nt' else ''
+    project_dir = os.environ.get('VIDEO_PRODUCTION_PROJECT_DIR', '').strip()
+    if project_dir and name in {'ffmpeg', 'ffprobe'}:
+        project_bin = Path(project_dir).resolve() / 'video-production-deps' / 'ffmpeg' / 'bin'
+        candidate = project_bin / (name + exe)
+        if candidate.is_file():
+            return str(candidate)
     value = os.environ.get(name.upper(), '').strip()
     if value and Path(value).is_file():
         return value
@@ -42,12 +48,19 @@ def tool_path(name):
         candidate = Path(directory) / (name + exe)
         if candidate.is_file():
             return str(candidate)
-    try:
-        recorded = json.loads((ROOT / 'scripts' / 'tools.json').read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return name
-    value = str(recorded.get(name) or '').strip()
-    return value if value and Path(value).is_file() else name
+    manifests = []
+    if project_dir:
+        manifests.append(Path(project_dir).resolve() / 'video-production-deps' / 'tools.json')
+    manifests.append(ROOT / 'scripts' / 'tools.json')
+    for manifest in manifests:
+        try:
+            recorded = json.loads(manifest.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        value = str(recorded.get(name) or '').strip()
+        if value and Path(value).is_file():
+            return value
+    return name
 
 
 def load(path):

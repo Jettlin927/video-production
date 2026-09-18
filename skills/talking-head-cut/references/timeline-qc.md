@@ -7,9 +7,9 @@
 ```json
 {
   "revision": "cut-001",
-  "source": {"id": "raw-01", "path": "absolute/raw.mp4", "duration_s": 60},
-  "fps": {"num": 50, "den": 1},
-  "duration_frames": 350,
+  "source": {"id": "raw-01", "path": "absolute/raw.mp4", "duration_s": 60, "fps": {"num": 50, "den": 1}},
+  "fps": {"num": 30, "den": 1},
+  "duration_frames": 210,
   "segments": [
     {"id": "k1", "source_in_s": 1, "source_out_s": 4, "final_in_s": 0, "final_out_s": 3},
     {"id": "k2", "source_in_s": 6, "source_out_s": 10, "final_in_s": 3, "final_out_s": 7}
@@ -23,13 +23,13 @@
 }
 ```
 
-默认原速、无重叠，区间用秒、半开区间 `[in,out)`，原片源时码从解码时间原点开始并记录偏移。`final_in` 是此前实际保留时长之和；`final_out-final_in = source_out-source_in`。
+默认原速、无重叠，区间用秒、半开区间 `[in,out)`，原片源时码从解码时间原点开始并记录偏移。`source.fps` 是源视频真实帧率，`fps` 是成片帧率；二者可以不同，不能用成片 `fps` 推算 `source_in_frame`。`final_in` 是此前实际保留时长之和；`final_out-final_in = source_out-source_in`。
 
 保留区间内词的时间映射为 `final_t = final_in + (source_t - source_in)`。例如源片 6.2–6.5 秒的词映射到上例 3.2–3.5 秒。
 
 对候选或已应用的原速时间轴，执行 `python scripts/map_words.py --transcript transcript.source.json --plan edit-plan.json --out words.final.json`，再把 `words.final.json` 交给 `caption_pages.py`。跨切口词会报错要求回源，不偷偷夹短；复用段使用独立 instance_id，不把二次出现去重。候选计划通过映射检查只代表计划可执行，媒体应用后仍需验证。
 
-精确音频气口使用 [semantic-pacing.md](semantic-pacing.md) 的 `sample_audio_cumulative_video` 模式：`final_in_s/out_s` 按采样连续，视频 `final_in_frame/out_frame` 按累计时刻取整；`audio_duration_s/audio_samples/sample_rate` 记录未补尾的声音时长，`duration_frames/duration_s` 记录完整视频时长。只允许片尾补不足一帧；两种时基不混用，字幕词时码以声音为准。子片段保存 `parent_instance_id`；旧删减范围通过 `previous_revision` 和保存的 `selection-plan.json` 追溯，新增删除表用 `old_final_in_s/out_s` 明确标出旧时间轴。
+精确音频气口使用 [semantic-pacing.md](semantic-pacing.md) 的 `sample_audio_cumulative_video` 模式：`final_in_s/out_s` 按采样连续，成片 `final_in_frame/out_frame` 按累计时刻取整，源 `source_in_frame/source_out_frame` 按 `source.fps` 取整；`audio_duration_s/audio_samples/sample_rate` 记录未补尾的声音时长，`duration_frames/duration_s` 记录完整视频时长。只允许片尾补不足一帧；两种时基不混用，字幕词时码以声音为准。子片段保存 `parent_instance_id`；旧删减范围通过 `previous_revision` 和保存的 `selection-plan.json` 追溯，新增删除表用 `old_final_in_s/out_s` 明确标出旧时间轴。
 
 约束与异常：
 

@@ -26,6 +26,10 @@ def tighten(plan, words_doc, target_ms=50):
     if plan['revision'] != words_doc['revision'] or not 0 < target_ms <= 1000:
         raise ValueError('Invalid revision or pause target')
     fps = plan['fps']['num']/plan['fps']['den']
+    source_rate = (plan.get('source') or {}).get('fps')
+    if not isinstance(source_rate, dict) or type(source_rate.get('num')) is not int or type(source_rate.get('den')) is not int or source_rate['num'] <= 0 or source_rate['den'] <= 0:
+        raise ValueError('Plan requires source.fps for source frame calculations')
+    source_fps = source_rate['num']/source_rate['den']
     groups = defaultdict(list)
     for w in words_doc['words']: groups[w['instance_id']].append(w)
     segments = copy.deepcopy(plan['segments'])
@@ -39,32 +43,37 @@ def tighten(plan, words_doc, target_ms=50):
         if min(lm,rm) < -1e-6: raise ValueError('Existing segment cuts a retained word')
         before = lm+rm
         # Protect existing small leading/trailing margins; never add artificial silence.
-        ln = max(0, math.floor((lm-min(.01,lm))*fps+1e-7))
-        rn = max(0, math.floor((rm-min(.01,rm))*fps+1e-7))
+        ln = max(0, math.floor((lm-min(.01,lm))*source_fps+1e-7))
+        rn = max(0, math.floor((rm-min(.01,rm))*source_fps+1e-7))
         choices = []
         for dl in range(ln+1):
             for dr in range(rn+1):
-                after = before-(dl+dr)/fps
+                after = before-(dl+dr)/source_fps
                 if after < -1e-7 or before <= target+1e-7 and dl+dr: continue
                 choices.append((round(abs(after-min(target,before)),9),
-                                abs((lm-dl/fps)-.03), dl, dr, after))
+                                abs((lm-dl/source_fps)-.03), dl, dr, after))
         _, _, dl, dr, after = min(choices)
-        left['source_out_s'] = old_left['source_out_s']-dl/fps
-        right['source_in_s'] = old_right['source_in_s']+dr/fps
+        left['source_out_s'] = old_left['source_out_s']-dl/source_fps
+        right['source_in_s'] = old_right['source_in_s']+dr/source_fps
         records.append({'left':left['id'],'right':right['id'], 'old_final_time_s':old_right['final_in_s'],
                         'old_gap_ms':round(before*1000,4),'new_gap_ms':round(after*1000,4),
                         'left_trim_frames':dl,'right_trim_frames':dr,'word_tail':a.get('word',a.get('text')),
                         'word_head':b.get('word',b.get('text')), 'review':'not_checked',
                         'asr_left_voice_end_s':end,'asr_right_voice_start_s':start})
-    cursor = 0
+    cursor_s = 0.0
     for s in segments:
-        s['source_in_frame']=round(s['source_in_s']*fps);s['source_out_frame']=round(s['source_out_s']*fps)
-        if abs(s['source_in_frame']/fps-s['source_in_s'])>1e-6 or abs(s['source_out_frame']/fps-s['source_out_s'])>1e-6:
+        s['source_in_frame']=round(s['source_in_s']*source_fps);s['source_out_frame']=round(s['source_out_s']*source_fps)
+        if abs(s['source_in_frame']/source_fps-s['source_in_s'])>1e-6 or abs(s['source_out_frame']/source_fps-s['source_out_s'])>1e-6:
             raise ValueError('Input plan is not on its declared frame grid')
-        duration = s['source_out_frame']-s['source_in_frame']
-        if duration <= 0: raise ValueError('Tightening would erase a kept segment')
-        s.update(final_in_frame=cursor,final_in_s=cursor/fps,duration_frames=duration)
-        cursor+=duration;s.update(final_out_frame=cursor,final_out_s=cursor/fps)
+        source_duration = s['source_out_s']-s['source_in_s']
+        if source_duration <= 0: raise ValueError('Tightening would erase a kept segment')
+        final_in_frame = round(cursor_s*fps)
+        cursor_s += source_duration
+        final_out_frame = round(cursor_s*fps)
+        s.update(source_frame_count=s['source_out_frame']-s['source_in_frame'],
+                 final_in_frame=final_in_frame,final_in_s=final_in_frame/fps,
+                 duration_frames=final_out_frame-final_in_frame,
+                 final_out_frame=final_out_frame,final_out_s=final_out_frame/fps)
     lookup={s['id']:s for s in segments}
     for r in records:
         r['final_time_s']=lookup[r['right']]['final_in_s']
@@ -77,8 +86,9 @@ def tighten(plan, words_doc, target_ms=50):
         prev=s['source_out_s']
     if prev<plan['source']['duration_s']:
         deleted.append({'source_in_s':prev,'source_out_s':plan['source']['duration_s'],'reason':'Retain prior editorial end selection'})
+    duration_frames = round(cursor_s*fps)
     revised={'revision':plan['revision']+'-pause'+str(target_ms),'previous_revision':plan['revision'],
-             'source':plan['source'],'fps':plan['fps'],'duration_frames':cursor,'duration_s':cursor/fps,
+             'source':plan['source'],'fps':plan['fps'],'duration_frames':duration_frames,'duration_s':duration_frames/fps,
              'segments':segments,'seams':records,'deletions':deleted,
              'pause_target_ms':target_ms,'status':'review_required',
              'mapping':'Same original-speed audio/video boundaries on existing frame grid; no added silence'}
@@ -86,7 +96,7 @@ def tighten(plan, words_doc, target_ms=50):
             'before':stats([r['old_gap_ms'] for r in records]),'after':stats([r['new_gap_ms'] for r in records]),
             'changed_seams':sum(r['left_trim_frames']+r['right_trim_frames']>0 for r in records),
             'unchanged_short_seams':sum(r['old_gap_ms'] <= target_ms+1e-6 for r in records),
-            'frame_ms':1000/fps,'target_ms':target_ms,'rows':records,
+            'frame_ms':1000/fps,'source_frame_ms':1000/source_fps,'target_ms':target_ms,'rows':records,
             'natural_breath_statistics':'not_checked; ASR gaps can contain breath or quiet phonemes'}
     return revised, report
 

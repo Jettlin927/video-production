@@ -10,8 +10,10 @@ before anything else has been installed. Sibling skills found next to this one
     python scripts/check_env.py --json                # machine-readable
     python scripts/check_env.py --deep                # also hash every bundled font
     python scripts/check_env.py --network             # also test TLS reachability of the API host
-    python scripts/check_env.py --search D:\\tools     # extra roots to look for ffmpeg/ffprobe in
-    python scripts/check_env.py --write-tools         # record resolved paths in tools.json
+    python scripts/check_env.py --project-dir D:\\project --json --write-tools
+                                                        # use project-local FFmpeg only
+    python scripts/check_env.py --install --project-dir D:\\project
+                                                        # download into that project
 
 Exit code is 0 when every required dependency is present, 1 otherwise. Warnings never fail
 the run; they mark evidence the skill asks for that this machine cannot produce yet.
@@ -37,9 +39,11 @@ EXTRA_SIBLINGS = [p for p in (HOOK_SIBLING,) if p.exists()]
 MIN_PYTHON = (3, 8)
 RECOMMENDED_PYTHON = (3, 10)
 
-# Where --install places portable binaries: shared by every skill, outside any one package,
-# so a downloaded 80 MB ffmpeg is not duplicated into each skill copy that gets shared.
+# Fallback install location for compatibility mode. Project mode never uses this location
+# for ffmpeg/ffprobe.
 INSTALL_DIR = Path.home() / '.agents' / 'skills' / '.tools' / 'bin'
+PROJECT_DEPS_NAME = 'video-production-deps'
+PROJECT_FFMPEG_BIN = Path('ffmpeg') / 'bin'
 
 # Directories that commonly hold ffmpeg/Chrome without ever editing PATH.
 TOOL_DIRS = [
@@ -70,12 +74,36 @@ SEARCH_DEPTH = 6
 TOOLS_JSON = ROOT / 'scripts' / 'tools.json'
 
 
-def recorded_tools():
-    """Paths remembered by a previous --write-tools run, so a second run needs no --search."""
+def recorded_tools(path=TOOLS_JSON):
+    """Paths remembered by a previous check, scoped to the selected manifest."""
     try:
-        return json.loads(TOOLS_JSON.read_text(encoding='utf-8'))
+        return json.loads(Path(path).read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return {}
+
+
+def project_paths(project_dir):
+    """Return the project dependency bin and manifest paths, if project mode is active."""
+    if not project_dir:
+        return None, None
+    root = Path(project_dir).resolve()
+    deps = root / PROJECT_DEPS_NAME
+    return deps / PROJECT_FFMPEG_BIN, deps / 'tools.json'
+
+
+def find_project_tool(name, bin_dir, recorded):
+    """Resolve only a project-local media binary; never PATH or machine-wide directories."""
+    if not bin_dir:
+        return None, None
+    candidates = [name + EXE, name]
+    for candidate in candidates:
+        path = bin_dir / candidate
+        if path.is_file():
+            return str(path), f'项目依赖目录 {bin_dir}'
+    value = str((recorded or {}).get(name) or '').strip()
+    if value and Path(value).is_file() and Path(value).parent == bin_dir:
+        return value, '项目 tools.json'
+    return None, None
 
 
 def find_tool(name, extra_roots=(), env_vars=(), names=None, recorded=None):
@@ -381,30 +409,44 @@ def parse_args(argv=None):
     parser.add_argument('--deep', action='store_true', help='Also verify every bundled font by SHA256')
     parser.add_argument('--network', action='store_true', help='Also test TLS reachability of the API host')
     parser.add_argument('--search', action='append', default=[], metavar='DIR',
-                        help='Extra root to search for ffmpeg/ffprobe (repeatable)')
+                        help='Compatibility only: explicit user directory; ignored in project mode')
+    parser.add_argument('--project-dir', type=Path, default=None, metavar='DIR',
+                        help='Project root; ffmpeg/ffprobe use only DIR/video-production-deps/ffmpeg/bin')
     parser.add_argument('--output-dir', default=os.getcwd(), help='Where media will be written')
     parser.add_argument('--env', type=Path, default=ROOT / '.env')
     parser.add_argument('--write-tools', action='store_true',
-                        help='Record resolved tool paths in scripts/tools.json for later runs')
+                        help='Record paths in the selected project or skill tools.json')
     parser.add_argument('--quiet', action='store_true', help='Only print problems')
     parser.add_argument('--install', nargs='*', metavar='TOOL', default=None,
                         help='Download and place missing CLI tools (bare --install = every missing one). '
                              'Never runs implicitly: installing needs the current task\'s authorization.')
-    parser.add_argument('--install-dir', type=Path, default=INSTALL_DIR,
-                        help=f'Where --install places binaries (default: {INSTALL_DIR})')
+    parser.add_argument('--install-dir', type=Path, default=None,
+                        help='Where --install places binaries; project mode defaults to the project dependency dir')
     parser.add_argument('--print-install-commands', action='store_true',
                         help='Only print system package-manager commands; install nothing')
     return parser.parse_args(argv)
 
 
 def build_report(args):
-    """Collect the whole picture without printing, so bootstrap and probes can reuse it.
+    """Collect the whole picture without printing, so JSON output and installers can reuse it.
 
-    Side effect: --write-tools (and any --install) writes scripts/tools.json.
+    Side effect: --write-tools (and any --install) writes the selected tools.json.
     """
+    project_bin, project_tools_json = project_paths(args.project_dir)
+    args.project_dir = Path(args.project_dir).resolve() if args.project_dir else None
+    if args.project_dir:
+        project_bin, project_tools_json = project_paths(args.project_dir)
+    args.install_dir = (Path(args.install_dir).resolve() if args.install_dir
+                        else project_bin or INSTALL_DIR)
     report = {'skill_root': str(ROOT), 'sibling_root': str(SIBLING), 'os': platform.platform(),
               'required': {}, 'recommended': {}, 'optional': {}, 'routes': {},
               'problems': [], 'warnings': [], 'install': {'requested': False}}
+    if args.project_dir:
+        report['project'] = {'root': str(args.project_dir),
+                             'deps_dir': str(args.project_dir / PROJECT_DEPS_NAME),
+                             'media_bin_dir': str(project_bin),
+                             'tools_json': str(project_tools_json),
+                             'media_tools_scope': 'project-only'}
 
     def record(bucket, name, ok, detail, hint=''):
         report[bucket][name] = {'ok': bool(ok), 'detail': detail, 'hint': hint}
@@ -447,9 +489,17 @@ def build_report(args):
     report['font_families'] = fonts.get('families', [])
 
     # ---- external binaries ----
-    remembered = recorded_tools()
-    ffmpeg, ffmpeg_src = find_tool('ffmpeg', args.search, recorded=remembered)
-    ffprobe, ffprobe_src = find_tool('ffprobe', args.search, recorded=remembered)
+    shared_recorded = recorded_tools()
+    project_recorded = recorded_tools(project_tools_json) if project_tools_json else {}
+    remembered = {**shared_recorded, **project_recorded}
+    if args.project_dir:
+        # Project mode is intentionally strict: an existing machine-wide binary must not
+        # silently turn a missing project dependency into a green report.
+        ffmpeg, ffmpeg_src = find_project_tool('ffmpeg', project_bin, project_recorded)
+        ffprobe, ffprobe_src = find_project_tool('ffprobe', project_bin, project_recorded)
+    else:
+        ffmpeg, ffmpeg_src = find_tool('ffmpeg', args.search, recorded=remembered)
+        ffprobe, ffprobe_src = find_tool('ffprobe', args.search, recorded=remembered)
     node, node_src = find_tool('node', args.search, recorded=remembered)
     npm, npm_src = find_tool('npm', args.search, recorded=remembered)
     resolved = {}
@@ -487,8 +537,12 @@ def build_report(args):
             if not args.quiet:
                 print('所需命令行工具均已存在，无需安装。', flush=True)
 
-    ffmpeg_hint = ('把 ffmpeg 放进 PATH，或用 --ffmpeg "<解析到的路径>" 调用脚本'
-                   if not ffmpeg else f'脚本调用时带上 --ffmpeg "{ffmpeg}"（若不在 PATH）')
+    if not ffmpeg and args.project_dir:
+        ffmpeg_hint = (f'项目依赖缺失；执行 python check_env.py --project-dir "{args.project_dir}" '
+                       '--install 后重试')
+    else:
+        ffmpeg_hint = ('把 ffmpeg 放进 PATH，或用 --ffmpeg "<解析到的路径>" 调用脚本'
+                       if not ffmpeg else f'脚本调用时带上 --ffmpeg "{ffmpeg}"（若不在 PATH）')
     record('required', 'ffmpeg', bool(ffmpeg),
            f'{resolved["ffmpeg"]["version"]} @ {ffmpeg}（{ffmpeg_src}）' if ffmpeg else '未找到',
            ffmpeg_hint)
@@ -584,8 +638,8 @@ def build_report(args):
         '生成素材（B-roll）': ready('ffprobe', 'ffmpeg', 'dashscope_key'),
     }
 
-    # What bootstrap could still fix by itself. Human-only items (.env key, disk, Python
-    # version) are deliberately excluded: re-running an installer would never resolve them.
+    # What the checker can fix by itself. Human-only items (.env key, disk, Python version)
+    # are deliberately excluded: re-running an installer would never resolve them.
     report['auto_fixable'] = [
         name for name in ('ffmpeg', 'ffprobe')
         if not (report['required'].get(name) or report['recommended'].get(name) or {'ok': True})['ok']
@@ -594,12 +648,15 @@ def build_report(args):
 
     if args.write_tools or (args.install and any(
             r.get('ok') for r in report['install'].get('outcome', {}).values())):
-        target = TOOLS_JSON
+        target = project_tools_json or TOOLS_JSON
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps({
             'checked_at': time.strftime('%Y-%m-%dT%H:%M:%S'),
             'platform': platform.platform(),
             'python': sys.executable,
             'ffmpeg': ffmpeg, 'ffprobe': ffprobe, 'node': node, 'npm': npm, 'browser': browser,
+            **({'project_root': str(args.project_dir),
+                'ffmpeg_bin_dir': str(project_bin)} if args.project_dir else {}),
         }, ensure_ascii=False, indent=2), encoding='utf-8')
         report['tools_json'] = str(target)
 

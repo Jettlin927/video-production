@@ -12,6 +12,15 @@ from pause_plan import load, save, stats
 TARGETS = {'within_sentence': 20, 'expansion': 30, 'sentence': 60, 'topic': 120}
 
 
+def _fps(value, name):
+    if not isinstance(value, dict) or set(value) != {'num', 'den'}:
+        raise ValueError(f'{name} must declare num and den')
+    num, den = value['num'], value['den']
+    if type(num) is not int or type(den) is not int or num <= 0 or den <= 0:
+        raise ValueError(f'{name} must be a positive rational frame rate')
+    return num / den
+
+
 def candidates(words):
     result = []
     for a, b in zip(words, words[1:]):
@@ -43,7 +52,8 @@ def apply(plan, words_doc, decisions, sample_rate=48000):
         raise ValueError('Stale pacing revision')
     if sample_rate <= 0:
         raise ValueError('Invalid audio sample rate')
-    fps = plan['fps']['num'] / plan['fps']['den']
+    fps = _fps(plan.get('fps'), 'plan.fps')
+    source_fps = _fps((plan.get('source') or {}).get('fps'), 'plan.source.fps')
     segs = {s['id']: s for s in plan['segments']}
     presets = decisions.get('preset_targets_ms', TARGETS)
     if set(presets) != set(TARGETS):
@@ -99,13 +109,14 @@ def apply(plan, words_doc, decisions, sample_rate=48000):
             sb = old['source_in_s']+(b-old_a)/sample_rate
             fa,fb = cursor/sample_rate,(cursor+b-a)/sample_rate
             vf,ve = round(fa*fps),round(fb*fps)
+            source_vf, source_ve = round(sa * source_fps), round(sb * source_fps)
             s.update(id=old['id']+f'-p{i+1}',parent_instance_id=old['id'],
                      source_in_s=sa,source_out_s=sb,final_in_s=fa,final_out_s=fb,
                      final_in_sample=cursor,final_out_sample=cursor+b-a,
                      old_final_in_s=a/sample_rate,old_final_out_s=b/sample_rate,
                      final_in_frame=vf,final_out_frame=ve,duration_frames=ve-vf,
-                     source_in_frame=round((sa+vf/fps-fa)*fps))
-            s.pop('source_out_frame',None)
+                     source_in_frame=source_vf,source_out_frame=source_ve,
+                     source_frame_count=source_ve-source_vf)
             if ve <= vf:
                 raise ValueError('Video segment below one frame; preserve this pause and review')
             result.append(s);cursor += b-a
@@ -117,7 +128,7 @@ def apply(plan, words_doc, decisions, sample_rate=48000):
            'audio_duration_s':cursor/sample_rate,'audio_samples':cursor,'sample_rate':sample_rate,
            'timing_mode':'sample_audio_cumulative_video','status':'review_required',
            'seams':rows,'deletions':[{'old_final_in_s':a/sample_rate,'old_final_out_s':b/sample_rate} for a,b in cuts],
-           'mapping':'Audio/words use sample times; video boundaries round cumulative final time, source frame phase error <= half a frame. Tail padding only.'}
+           'mapping':'Audio/words use sample times; final video boundaries round cumulative output time; source frame boundaries use plan.source.fps and are independent of plan.fps. Tail padding only.'}
     new.pop('pause_target_ms',None)
     report={'method':'ASR word-end to next word-start; includes internal gaps and edited joins; not pure-silence measurement',
             'before':stats([r['old_gap_ms'] for r in rows]),'after':stats([r['new_gap_ms'] for r in rows]),
