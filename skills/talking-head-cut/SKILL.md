@@ -41,7 +41,7 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 ## 3. 先选内容、标注气口，再执行剪辑
 
-拿到词级字幕后、切音视频之前，必须读取 [semantic-pacing.md](references/semantic-pacing.md)，按其中五步执行。先缓存转写 → 选保留内容 → 导出全部气口候选并逐处填写类别/目标/理由 → 校验剪辑计划及字幕语义分组 → 应用媒体剪切、渲染和验收。`selection-plan.json`、`pause-decisions.json`、`edit-plan.json` 是可复用产物，不用对话临时推算切点。未标注完整不能先剪再补设计。
+拿到词级字幕后、切音视频之前，必须读取 [semantic-pacing.md](references/semantic-pacing.md)，按其中五步执行。先缓存转写 → 选保留内容 → 导出全部气口候选并逐处填写类别/目标/理由 → 用主 Skill [正式脚本契约](../video-production/references/script-contracts.md) 的 `compile_timeline.py` 一次生成并校验时间轴与词映射 → 制作字幕、渲染和验收。`selection-plan.json`、`pause-decisions.json`、`edit-plan.json` 是可复用产物，不用对话临时推算切点。编译失败时修改内容选择或气口决定，不另写时间轴修补脚本。
 
 - 按完整语义比较重拍，保留内容完整、音质可用、表达自然的一次；不以“最后一遍”或“最长一遍”作为唯一依据。保留有强调作用的重复、语气词、呼吸和表情收尾。
 - 将删除分为重拍/口误、提示/准备、无效等待和用户要求的内容删减。每项记录源区间、理由和保留句；没有把握的独有内容先保留。

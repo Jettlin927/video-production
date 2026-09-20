@@ -22,30 +22,41 @@ Claude Code 用户将 `-a codex` 换成 `-a claude-code`。其他 Agent 请按�
 
 也可以下载本仓库 ZIP，把 `skills/` 内的三个完整目录复制到宿主的技能目录，保留脚本、references、assets 和字体许可。ZIP 安装需要手动更新，不会自动登记到 Skills CLI。
 
-## 首次配置
+## 下载后立即准备依赖（制作任务开始前）
 
-安装 Skill 后，先确定当前项目根目录，再在安装后的 `video-production` Skill 目录执行：
-
-```shell
-python scripts/check_env.py --project-dir <project-root> --json --write-tools
-```
-
-项目模式会把 FFmpeg/ffprobe 放在 `<project-root>/video-production-deps/ffmpeg/bin`，并把路径记录在 `<project-root>/video-production-deps/tools.json`。它不会使用其他项目或机器其他位置的 FFmpeg 把检查强行变绿。若报告的 `auto_fixable` 有内容，执行：
+安装 Skill 后、交给 Agent 剪第一条视频之前，先确定长期使用的工作区根目录，并在安装后的 `video-production` Skill 目录执行一次：
 
 ```shell
-python scripts/check_env.py --project-dir <project-root> --install --write-tools
-python scripts/check_env.py --project-dir <project-root> --json --write-tools
+python scripts/prepare_workspace.py --workspace-root <workspace-root>
 ```
 
-Node、浏览器、Python 和 API 配置等缺项仍按报告处理。项目依赖目录不进入仓库，别人更新代码后在自己的项目根目录重新运行这一步即可。
+准备脚本一次性创建 `<workspace-root>/video-production-deps/`，其中包括共享 Python venv、固定版本 Node/Remotion 依赖、npm 缓存、FFmpeg/ffprobe 和 `tools.json`。所有视频项目复用这一套依赖；不要等收到视频制作任务后再安装，也不要在每个项目里复制 venv、`node_modules` 或 FFmpeg。
+
+该命令会下载并安装第三方依赖；需要在下载 Skill 时由用户或部署流程明确执行。只想审阅动作时先运行：
+
+```shell
+python scripts/prepare_workspace.py --workspace-root <workspace-root> --dry-run
+```
+
+Node、浏览器、Python 和 API 配置等缺项仍按最终报告处理。共享依赖目录不进入本 Skill 仓库。
 
 将 `.env.example` 复制为 `.env`，填写自己的 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_BASE_URL`（对应业务空间的 HTTPS API 地址，以 `/api/v1` 结尾）。模型名称需与自己的账号权限匹配。真实 `.env` 仅保存在本机。
 
 ```shell
-python scripts/check_env.py --project-dir <project-root> --deep --json --write-tools
+python scripts/check_env.py --project-dir <workspace-root> --deep --json --write-tools
 ```
 
 建议使用 Python 3.12。视频处理需要 FFmpeg/ffprobe；Remotion 路线需要 Node.js、浏览器和工程依赖；部分分析需要 NumPy/SciPy 等 Python 包。依赖以检查结果和所选流程为准。本仓库包含约 136 MiB 的字体等资源，不包含模型权重、原始视频或成片。
+
+## 每条视频任务开始时只检查
+
+依赖准备完以后，每条任务只运行检查，不再安装：
+
+```shell
+python scripts/check_env.py --project-dir <workspace-root> --deep --json --write-tools
+```
+
+检查不通过就停止制作，回到上一节补齐依赖；不要在任务中反复下载、换临时目录或临时寻找机器上的其他 FFmpeg。正式脚本的参数、输出、产物和失败语义见 [正式脚本契约](skills/video-production/references/script-contracts.md)。时间轴编译器只固化时间数学和数据契约，保留内容、片段、气口和字幕语义由 Agent 根据当次视频决定。
 
 ## 使用示例
 
@@ -88,7 +99,7 @@ Agent 在 `production.json` 记录 `export_format: "both"`、两个实际输出�
 npx skills update video-production talking-head-cut hook-video -g
 ```
 
-更新后检查并恢复本机 `.env`，再用当前项目根目录运行 `check_env.py --project-dir <project-root>`。项目内的 `video-production-deps/` 不由 Skill 更新覆盖，也不需要提交到仓库。目录替换可能丢失本机配置或改动，不要把个人配置与待发布文件混用。以上安装/更新语法依据 Skills CLI 文档；各宿主的实际发现与运行情况需在目标环境验证。
+更新后检查并恢复本机 `.env`，再用工作区运行 `check_env.py --project-dir <workspace-root>`。已有 `video-production-deps/` 不由 Skill 更新覆盖；依赖锁发生变化时重新执行 `prepare_workspace.py`。目录替换可能丢失本机配置或改动，不要把个人配置与待发布文件混用。以上安装/更新语法依据 Skills CLI 文档；各宿主的实际发现与运行情况需在目标环境验证。
 
 ## 维护与发布
 

@@ -9,7 +9,7 @@ description: 视频制作与视频/录音转字幕入口。按素材和目标路
 
 ## 工作区与项目目录
 
-开始任何新任务都先读取 [workspace-layout.md](references/workspace-layout.md)，并用 `scripts/init_project.py` 建立项目目录。工作区根目录允许用户直接放原始视频或录音；不要为了整理而移动或复制数 GB 原片。项目的 `input/source-manifest.json` 记录这些源文件的绝对路径、大小和修改时间。
+开始任何新任务都先读取 [workspace-layout.md](references/workspace-layout.md) 和 [正式脚本契约](references/script-contracts.md)，并用 `scripts/init_project.py` 建立项目目录。工作区根目录允许用户直接放原始视频或录音；不要为了整理而移动或复制数 GB 原片。项目的 `input/source-manifest.json` 记录这些源文件的绝对路径、大小和修改时间。
 
 项目先按 route 分类到 `projects/<route>/`；每个项目固定使用 `input/`、`brief/`、`work/`、`project/`、`output/`、`qc/`。转写、计划、时间轴和下载素材进入 `work/`，Remotion 与剪映可编辑工程进入 `project/`，最终 MP4/SRT 进入 `output/`，检查结果和审片帧进入 `qc/`。临时探测统一放 `<workspace-root>/scratch/`，不得在工作区根目录新建 `_probe`、`v2` 等临时项目。
 
@@ -25,11 +25,10 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --js
 
 `check_env.py` 是本 Skill 家族的唯一依赖入口。工作区模式会创建并使用 `<workspace-root>/video-production-deps/ffmpeg/bin/ffmpeg(.exe)`、`ffprobe(.exe)`，并把共享路径写入 `<workspace-root>/video-production-deps/tools.json`；它不会用机器其他位置的 FFmpeg 把检查变绿。后续脚本消费这份共享报告，并显式传入其中的 `ffmpeg`/`ffprobe` 路径；脚本没有路径参数时，为该次命令设置 `VIDEO_PRODUCTION_PROJECT_DIR=<workspace-root>`。
 
-若 JSON 报告的 `auto_fixable` 有内容，直接使用检查器的安装能力：
+任务开始时只检查，不安装。若 JSON 报告的 `auto_fixable` 有内容，停止制作并回到 Skill 下载后的准备阶段执行：
 
 ```text
-python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --install --write-tools
-python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --json --write-tools
+python "<skill-root>/scripts/prepare_workspace.py" --workspace-root "<workspace-root>"
 ```
 
 安装完成前不进入对应制作路线；仍未 ready 时，只报告该路线的 `routes`、`problems` 和缺项。项目模式下不要使用 `--search`，也不要自行写 `Get-ChildItem -Recurse`、`find` 或 `where /R` 搜索整盘；项目依赖目录就是 FFmpeg 的唯一来源。
@@ -76,7 +75,7 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --js
    - 钩子/分镜/素材：脚本或分镜 → 时间轴计划 → 需要时生成/准备素材 → 渲染 → 文件与画面 QC。
 5. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
 
-主干中的每一步都以文件产物作为下一步输入。某一步失败时修复该产物或报告阻塞；不要跳到另一条工具路线、重建第二条时间轴或用成片存在代替 QC。
+主干中的每一步都以文件产物作为下一步输入。时间轴、字幕、渲染和 QC 使用 [正式脚本契约](references/script-contracts.md) 的入口；接口缺口应修复公共脚本及测试，不在 `scratch/` 重写同类脚本。某一步失败时修复该阶段的内容输入或报告阻塞；不要跳到另一条工具路线、重建第二条时间轴或用成片存在代替 QC。
 
 ## Agent 执行约束
 
