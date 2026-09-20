@@ -5,7 +5,7 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 # 真人口播剪辑
 
-本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成环境门和类型判断后在当前任务进入这里。直接调用时，若当前任务没有环境报告，先执行主 Skill 的 `scripts/check_env.py --project-dir <project-root> --json --write-tools` 一次。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
+本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成环境门和类型判断后在当前任务进入这里。直接调用时，若当前任务没有环境报告，先执行主 Skill 的 `scripts/check_env.py --project-dir <workspace-root> --json --write-tools` 一次。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
 
 输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；运行环境继承主 Skill 的唯一环境门。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
 
@@ -13,10 +13,10 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 - 完整流程交付 MP4＋剪映可编辑草稿，在 `production.json.export_format` 记录 `both`。开始完整视频路线时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，按环境门报告确认导出依赖，保留源片切段及独立字幕、BGM 轨道；两项产物消费同一最终时间轴。
 
-- 记录输入路径、大小、修改时间、媒体时长、帧率/时间基、旋转、分辨率、音轨及色彩信息；原片保持只读，每次运行建立独立输出目录。
+- 按主 Skill 的 [工作区规范](../video-production/references/workspace-layout.md) 使用 `projects/talking-head/<日期>-<项目名>/`；原片可保留在工作区根目录并保持只读，路径、大小、修改时间、媒体时长、帧率/时间基、旋转、分辨率、音轨及色彩信息写入输入清单。返工复用原项目和 revision，不新建 `-v2` 目录。
 - 只给 raw＋风格时：保留独有论点、例子和顺序，删拍摄废片与确定的重说，保持原声和原速；目标时长随有效内容形成。用户明确要求时才做高光摘选、重排、整体变速或改写式制作。
 - 把风格定调写成 `style.json`：语气、节奏、字幕层级、强调色、标题策略、人物构图、动画强度、音乐、补充画面、输出规格。缺省项按素材作可逆选择并简述，无需逐项询问。用户提供参考成片或字体样例时才读 [styles.md](references/styles.md)。
-- 主 Skill 的环境门已给出本次可用路线、工具绝对路径和版本；直接消费 `check_env.py --project-dir <project-root> --json --write-tools` 的结果，使用项目 `video-production-deps/tools.json`，不再探测 PATH、递归搜索磁盘或检查其他项目缓存。模型选择只在已有路线未 ready 时处理，并记录实际采用的模型/路径。
+- 主 Skill 的环境门已给出本次可用路线、工具绝对路径和版本；直接消费 `check_env.py --project-dir <workspace-root> --json --write-tools` 的结果，使用工作区共享的 `video-production-deps/tools.json`，不再探测 PATH、递归搜索磁盘或检查其他项目缓存。模型选择只在已有路线未 ready 时处理，并记录实际采用的模型/路径。
 - 开始时记录可用听审通道及接管方式。只选择一个最终时间轴和渲染后端，避免三套工程分别修改字幕。
 - 仅在渲染后端或依赖组合尚未有可复用证据时，先用 20–40 秒包含重说、接句和强调字幕的片段校准一次；已有同版本通过证据时直接进入全片。校准样片不是强制用户审批点。工具不可用时完成不依赖它的素材清单、风格和剪辑设计，明确缺失项；不把缺少依赖的任务说成剪辑完成。
 

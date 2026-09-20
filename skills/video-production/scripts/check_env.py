@@ -99,7 +99,7 @@ def find_project_tool(name, bin_dir, recorded):
     for candidate in candidates:
         path = bin_dir / candidate
         if path.is_file():
-            return str(path), f'项目依赖目录 {bin_dir}'
+            return str(path), f'工作区共享依赖目录 {bin_dir}'
     value = str((recorded or {}).get(name) or '').strip()
     if value and Path(value).is_file() and Path(value).parent == bin_dir:
         return value, '项目 tools.json'
@@ -538,7 +538,7 @@ def build_report(args):
                 print('所需命令行工具均已存在，无需安装。', flush=True)
 
     if not ffmpeg and args.project_dir:
-        ffmpeg_hint = (f'项目依赖缺失；执行 python check_env.py --project-dir "{args.project_dir}" '
+        ffmpeg_hint = (f'工作区共享依赖缺失；执行 python check_env.py --project-dir "{args.project_dir}" '
                        '--install 后重试')
     else:
         ffmpeg_hint = ('把 ffmpeg 放进 PATH，或用 --ffmpeg "<解析到的路径>" 调用脚本'

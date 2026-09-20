@@ -14,7 +14,7 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 ## 1. 定方向、写钩子脚本
 
 - 完整流程交付 MP4＋剪映可编辑草稿，记录 `production.json.export_format: "both"`；开始时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，核对依赖和支持范围。
-- 记录宣传对象、受众、平台与目标时长（默认 20–40 秒，画幅按平台）；用户给了参考片时同时量它的语速，作为本文案的节奏基准。每次运行建立独立输出目录。
+- 按主 Skill 的 [工作区规范](../video-production/references/workspace-layout.md) 使用 `projects/hook-video/<日期>-<项目名>/`；记录宣传对象、受众、平台与目标时长（默认 20–40 秒，画幅按平台）。用户给了参考片时将其登记为输入并实测语速；返工复用原项目和 revision，不新建 `-v2` 目录。
 - 写脚本前读取 [copy-model.md](references/copy-model.md)：按"结论前置 → 论据 → 痛点对比 → 方案 → 佐证 → CTA"组织，30 秒约 6–8 屏；每句标注屏幕角色、强调词与排版意图；**逐句拆出 ≤18 字的字幕分页**。
 - 产出 `hook-script.json`：稳定句 ID、中文文案、英文翻译（需要双语字幕时）、句角色、强调词、预期屏内时长、字幕分页。文案中的数据与承诺来自用户资料或用户给定的方向；不编造具体收益数字、政策条文或截图证据。
 - 把风格定调写成 `style.json`：画幅、色彩语义（陈述/结论/最大结论的用色）、字号层级、动画强度、是否双语字幕、是否配图、音乐、**三区纵向坐标（主画面区／字幕分隔线／字幕区）**。缺省项作可逆选择并简述，无需逐项询问。
@@ -46,7 +46,7 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 
 - 渲染 MP4，同时按剪映工程导出流程将同 revision 的 layout-plan、配音、BGM、图片和文案映射为独立轨道并执行 `export_jianying.py`。剪映版基础文本可编辑，逐字动效、chip 和复杂包装尚未自动转换，交付时明确差异；保留 Remotion 工程供还原动效。
 
-- 按主 Skill [check_env.py](../video-production/scripts/check_env.py) 确认 Node、浏览器、FFmpeg 可用；在独立输出目录建立 Remotion 工程，锁定依赖版本，单一帧时钟驱动所有动画。
+- 按主 Skill [check_env.py](../video-production/scripts/check_env.py) 确认共享 Node、浏览器、FFmpeg 可用；在任务 `project/` 下建立 Remotion 工程，锁定依赖版本但复用工作区依赖缓存，单一帧时钟驱动所有动画。
 - 组件从 [assets/remotion](assets/remotion) 起步：TypewriterLine、KeywordChips、BilingualSubtitleBar。这些是模板组件，首次实片渲染后按实际效果校准再复用。
 - 字体读取主 Skill [fonts.md](../video-production/references/fonts.md)，等待真实字体加载后再渲染；大字排版按真实字宽检查换行与溢出。
 - 配音、字幕、动画消费同一份 `layout-plan.json` 与帧映射；后续修改重建映射再渲染受影响片段。

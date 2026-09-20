@@ -5,23 +5,31 @@ description: 视频制作与视频/录音转字幕入口。按素材和目标路
 
 # 视频制作主 Skill
 
-识别用户目标后，先通过环境门，再选择一个主流程；保持用户的素材、风格、时长、授权和输出目录，不把所有视频都当真人口播。
+识别用户目标后，先建立规范项目目录并通过环境门，再选择一个主流程；保持用户的素材、风格、时长和授权，不把所有视频都当真人口播。
+
+## 工作区与项目目录
+
+开始任何新任务都先读取 [workspace-layout.md](references/workspace-layout.md)，并用 `scripts/init_project.py` 建立项目目录。工作区根目录允许用户直接放原始视频或录音；不要为了整理而移动或复制数 GB 原片。项目的 `input/source-manifest.json` 记录这些源文件的绝对路径、大小和修改时间。
+
+项目先按 route 分类到 `projects/<route>/`；每个项目固定使用 `input/`、`brief/`、`work/`、`project/`、`output/`、`qc/`。转写、计划、时间轴和下载素材进入 `work/`，Remotion 与剪映可编辑工程进入 `project/`，最终 MP4/SRT 进入 `output/`，检查结果和审片帧进入 `qc/`。临时探测统一放 `<workspace-root>/scratch/`，不得在工作区根目录新建 `_probe`、`v2` 等临时项目。
+
+工作区只保留一套共享依赖 `<workspace-root>/video-production-deps/`：Python venv、FFmpeg/ffprobe、Node/Remotion 依赖及 `tools.json` 分目录存放，由所有项目复用；项目目录不复制依赖。Skill 源码仓库、共享依赖、项目和原始素材彼此分离。
 
 ## 运行前唯一环境门
 
-凡是要执行脚本、CLI、云 API 或渲染的任务，先在当前项目根目录建立项目依赖目录，并运行一次。`<project-root>` 指当前对话项目/工作区根目录，不是 Skill 安装目录：
+凡是要执行脚本、CLI、云 API 或渲染的任务，先在工作区根目录建立共享依赖目录，并运行一次。`<workspace-root>` 指包含原始素材、`projects/` 和共享依赖的工作区，不是 Skill 安装目录，也不是单个任务目录：
 
 ```text
-python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --json --write-tools
+python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --json --write-tools
 ```
 
-`check_env.py` 是本 Skill 家族的唯一依赖入口。项目模式会创建并使用 `<project-root>/video-production-deps/ffmpeg/bin/ffmpeg(.exe)`、`ffprobe(.exe)`，并把本项目路径写入 `<project-root>/video-production-deps/tools.json`；它不会用机器其他位置的 FFmpeg 把项目检查变绿。后续脚本优先消费这份项目报告，并显式传入其中的 `ffmpeg`/`ffprobe` 路径；脚本没有路径参数时，为该次命令设置 `VIDEO_PRODUCTION_PROJECT_DIR=<project-root>`。
+`check_env.py` 是本 Skill 家族的唯一依赖入口。工作区模式会创建并使用 `<workspace-root>/video-production-deps/ffmpeg/bin/ffmpeg(.exe)`、`ffprobe(.exe)`，并把共享路径写入 `<workspace-root>/video-production-deps/tools.json`；它不会用机器其他位置的 FFmpeg 把检查变绿。后续脚本消费这份共享报告，并显式传入其中的 `ffmpeg`/`ffprobe` 路径；脚本没有路径参数时，为该次命令设置 `VIDEO_PRODUCTION_PROJECT_DIR=<workspace-root>`。
 
 若 JSON 报告的 `auto_fixable` 有内容，直接使用检查器的安装能力：
 
 ```text
-python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --install --write-tools
-python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --json --write-tools
+python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --install --write-tools
+python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --json --write-tools
 ```
 
 安装完成前不进入对应制作路线；仍未 ready 时，只报告该路线的 `routes`、`problems` 和缺项。项目模式下不要使用 `--search`，也不要自行写 `Get-ChildItem -Recurse`、`find` 或 `where /R` 搜索整盘；项目依赖目录就是 FFmpeg 的唯一来源。
@@ -55,17 +63,18 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --json
 
 路由到真人口播后，执行子流程的“转写 → 内容选择 → 气口语义标注与字幕规划 → 应用剪辑 → 画面策划与包装 → 渲染/QC”。词级转写一到手就生成可复用的气口候选；切媒体前完成逐处时长与理由标注。主流程不能跳过计划直接按静音阈值删除。字幕/字体的局部修改复用已有转写与剪辑计划。
 
-写入项目 `production.json`：`route`（transcription/talking-head/hook-video/storyboard/asset/existing-edit）、`route_reason`、`inputs`、`style`、`output_dir`、`constraints`、`environment.tools_json`。这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
+写入任务目录根部的 `production.json`：`route`（transcription/talking-head/hook-video/storyboard/asset/existing-edit；Skill 验证使用 validation）、`route_reason`、`inputs`、`style`、`project_dir`、`output_dir`、`constraints`、`environment.tools_json`。路径必须落在规范分层中；这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
 
 ## 主干道：默认按这一条走
 
-1. **环境门**：以 `<project-root>` 运行 `check_env.py --project-dir`；缺失的项目级 FFmpeg/ffprobe 由同一命令的 `--install` 补齐，生成 `video-production-deps/tools.json`。
-2. **路由**：确认附件、目标和输出范围，只选择一个 `route`，写入 `production.json`；不为了寻找“更好的工具”新增路线。
-3. **建立唯一时间轴**：
+1. **建项目**：确认 route 和简短项目名，执行 `init_project.py --workspace-root ... --route ... --name ... --source ...`；复用已有任务时读取其 `production.json`，不另建 `-v2` 目录。
+2. **环境门**：以 `<workspace-root>` 运行 `check_env.py --project-dir`；缺失的共享 FFmpeg/ffprobe 由同一命令的 `--install` 补齐，生成 `video-production-deps/tools.json`。
+3. **路由**：确认附件、目标和输出范围，只选择一个 `route`，完善 `production.json`；不为了寻找“更好的工具”新增路线。
+4. **建立唯一时间轴**：
    - 仅转写：探测媒体 → 转写 → 词级 JSON/可读稿/SRT → 文字质检。
    - 真人口播：探测媒体 → 词级转写 → 内容选择 → 气口决策 → `edit-plan.json` → 词映射/字幕 → 渲染 → 技术与听审 QC。
    - 钩子/分镜/素材：脚本或分镜 → 时间轴计划 → 需要时生成/准备素材 → 渲染 → 文件与画面 QC。
-4. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
+5. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
 
 主干中的每一步都以文件产物作为下一步输入。某一步失败时修复该产物或报告阻塞；不要跳到另一条工具路线、重建第二条时间轴或用成片存在代替 QC。
 
@@ -102,6 +111,6 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<project-root>" --json
 
 共享安装时将本 Skill 与 `talking-head-cut`、`hook-video` 放在同一级技能目录，按宿主的安装规则复制或建立目录链接。其他 harness 需要将共享目录纳入技能发现范围；可读取文件不等于会自动发现 Skill。没有自动发现能力时，显式读取本 Skill 的 `SKILL.md`，继续按相对路径读取子流程。
 
-迁移到其他 Agent 时各 Skill 目录一并复制，保留相邻路径。用 `.env.example` 创建本机 `.env` 并填写自己的业务空间 Key 和地址；分享包排除真实 `.env` 和项目 `video-production-deps/` 中的二进制。复制后以 `check_env.py --project-dir <project-root> --json --write-tools` 作为唯一验收入口。更新前备份本机 `.env` 到 Skill 目录之外，更新后重新检查环境。宿主仍需有文件/命令/网络执行能力和推理模型；本 Skill 的 FFmpeg/ffprobe 由项目依赖目录提供。
+迁移到其他 Agent 时各 Skill 目录一并复制，保留相邻路径。用 `.env.example` 创建本机 `.env` 并填写自己的业务空间 Key 和地址；分享包排除真实 `.env` 和工作区 `video-production-deps/` 中的二进制。复制后以 `check_env.py --project-dir <workspace-root> --json --write-tools` 作为唯一验收入口。更新前备份本机 `.env` 到 Skill 目录之外，更新后重新检查环境。宿主仍需有文件/命令/网络执行能力和推理模型；本 Skill 的 FFmpeg/ffprobe 由工作区共享依赖目录提供。
 
 目前专门实现的子 Skill 是真人口播与钩子视频。新增类型只有在有明确独立流程及验证用例时才增加子 Skill 和路由分支；不要生成空目录或声称已经支持电影混剪、数字人等尚未实现的能力。路由参考案例见 [routing-cases.md](references/routing-cases.md)。
