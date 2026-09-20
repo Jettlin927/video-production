@@ -650,13 +650,29 @@ def build_report(args):
             r.get('ok') for r in report['install'].get('outcome', {}).values())):
         target = project_tools_json or TOOLS_JSON
         target.parent.mkdir(parents=True, exist_ok=True)
+        shared = Path(args.project_dir).resolve() / PROJECT_DEPS_NAME if args.project_dir else None
+        shared_python = None
+        remotion = None
+        node_modules = None
+        npm_cache = None
+        if shared:
+            python_candidate = shared / 'venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            remotion_candidate = shared / 'node' / 'node_modules' / '.bin' / (
+                'remotion.cmd' if os.name == 'nt' else 'remotion')
+            shared_python = str(python_candidate) if python_candidate.is_file() else None
+            remotion = str(remotion_candidate) if remotion_candidate.is_file() else None
+            node_modules = str(shared / 'node' / 'node_modules')
+            npm_cache = str(shared / 'npm-cache')
         target.write_text(json.dumps({
             'checked_at': time.strftime('%Y-%m-%dT%H:%M:%S'),
             'platform': platform.platform(),
-            'python': sys.executable,
+            'python': shared_python or sys.executable,
             'ffmpeg': ffmpeg, 'ffprobe': ffprobe, 'node': node, 'npm': npm, 'browser': browser,
             **({'project_root': str(args.project_dir),
-                'ffmpeg_bin_dir': str(project_bin)} if args.project_dir else {}),
+                'ffmpeg_bin_dir': str(project_bin),
+                'remotion': remotion,
+                'node_modules': node_modules,
+                'npm_cache': npm_cache} if args.project_dir else {}),
         }, ensure_ascii=False, indent=2), encoding='utf-8')
         report['tools_json'] = str(target)
 
