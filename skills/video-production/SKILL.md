@@ -9,7 +9,7 @@ description: 视频制作与视频/录音转字幕入口。按素材和目标路
 
 ## 工作区与项目目录
 
-开始任何新任务都先读取 [workspace-layout.md](references/workspace-layout.md) 和 [正式脚本契约](references/script-contracts.md)，并用 `scripts/init_project.py` 建立项目目录。工作区根目录允许用户直接放原始视频或录音；不要为了整理而移动或复制数 GB 原片。项目的 `input/source-manifest.json` 记录这些源文件的绝对路径、大小和修改时间。
+开始任何新任务都先读取 [workspace-layout.md](references/workspace-layout.md) 和 [正式脚本契约](references/script-contracts.md)，所有正式动作通过 `scripts/video_production.py` 统一 CLI 执行，并用其 `init` 子命令建立项目目录。工作区根目录允许用户直接放原始视频或录音；不要为了整理而移动或复制数 GB 原片。项目的 `input/source-manifest.json` 记录这些源文件的绝对路径、大小和修改时间。
 
 项目先按 route 分类到 `projects/<route>/`；每个项目固定使用 `input/`、`brief/`、`work/`、`project/`、`output/`、`qc/`。转写、计划、时间轴和下载素材进入 `work/`，Remotion 与剪映可编辑工程进入 `project/`，最终 MP4/SRT 进入 `output/`，检查结果和审片帧进入 `qc/`。临时探测统一放 `<workspace-root>/scratch/`，不得在工作区根目录新建 `_probe`、`v2` 等临时项目。
 
@@ -20,7 +20,7 @@ description: 视频制作与视频/录音转字幕入口。按素材和目标路
 凡是要执行脚本、CLI、云 API 或渲染的任务，先在工作区根目录建立共享依赖目录，并运行一次。`<workspace-root>` 指包含原始素材、`projects/` 和共享依赖的工作区，不是 Skill 安装目录，也不是单个任务目录：
 
 ```text
-python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --json --write-tools
+python "<skill-root>/scripts/video_production.py" check --workspace-root "<workspace-root>"
 ```
 
 `check_env.py` 是本 Skill 家族的唯一依赖入口。工作区模式会创建并使用 `<workspace-root>/video-production-deps/ffmpeg/bin/ffmpeg(.exe)`、`ffprobe(.exe)`，并把共享路径写入 `<workspace-root>/video-production-deps/tools.json`；它不会用机器其他位置的 FFmpeg 把检查变绿。后续脚本消费这份共享报告，并显式传入其中的 `ffmpeg`/`ffprobe` 路径；脚本没有路径参数时，为该次命令设置 `VIDEO_PRODUCTION_PROJECT_DIR=<workspace-root>`。
@@ -28,7 +28,7 @@ python "<skill-root>/scripts/check_env.py" --project-dir "<workspace-root>" --js
 任务开始时只检查，不安装。若 JSON 报告的 `auto_fixable` 有内容，停止制作并回到 Skill 下载后的准备阶段执行：
 
 ```text
-python "<skill-root>/scripts/prepare_workspace.py" --workspace-root "<workspace-root>"
+python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<workspace-root>"
 ```
 
 安装完成前不进入对应制作路线；仍未 ready 时，只报告该路线的 `routes`、`problems` 和缺项。项目模式下不要使用 `--search`，也不要自行写 `Get-ChildItem -Recurse`、`find` 或 `where /R` 搜索整盘；项目依赖目录就是 FFmpeg 的唯一来源。
@@ -66,7 +66,7 @@ python "<skill-root>/scripts/prepare_workspace.py" --workspace-root "<workspace-
 
 ## 主干道：默认按这一条走
 
-1. **建项目**：确认 route 和简短项目名，执行 `init_project.py --workspace-root ... --route ... --name ... --source ...`；复用已有任务时读取其 `production.json`，不另建 `-v2` 目录。
+1. **建项目**：确认 route 和简短项目名，执行统一 CLI 的 `init --workspace-root ... --route ... --name ... --source ...`；复用已有任务时读取其 `production.json`，不另建 `-v2` 目录。
 2. **环境门**：以 `<workspace-root>` 运行 `check_env.py --project-dir`；缺失的共享 FFmpeg/ffprobe 由同一命令的 `--install` 补齐，生成 `video-production-deps/tools.json`。
 3. **路由**：确认附件、目标和输出范围，只选择一个 `route`，完善 `production.json`；不为了寻找“更好的工具”新增路线。
 4. **建立唯一时间轴**：
@@ -80,7 +80,7 @@ python "<skill-root>/scripts/prepare_workspace.py" --workspace-root "<workspace-
 ## Agent 执行约束
 
 - 环境门只跑一次；主 Skill 将同一份结果传给子 Skill。子 Skill 不重复探测 PATH、缓存、浏览器、字体或模型，也不重新寻找 FFmpeg。
-- 先用已有脚本的 `--help`、现有产物和 JSON/TSV 小查询确认接口。只有命令帮助和产物不足以解释错误时，才按符号或行范围读取源码；默认不整篇读取 `.py`/`.tsx`。
+- 先运行统一 CLI 的 `contract` 获取机器可读接口，再查看对应子命令 `--help`、现有产物和 JSON/TSV 小查询。只有契约、帮助和产物不足以解释错误时，才按符号或行范围读取源码；默认不整篇读取 `.py`/`.tsx`。
 - 大型转写只生成一次紧凑索引（如 utterance/word TSV），后续内容选择、气口和字幕都复用索引；不要在每个阶段重新读取完整转写或重新写一套 dump 脚本。
 - 小范围画面验证使用 `scripts/sample_frames.py --ranges START:END,...`；它按每个时间窗口 seek 后再 concat。不要用全片 `select` 只取少数帧，否则仍会顺序解码整个 HEVC 文件。
 - 每个任务只保留一条 canonical 时间轴和一份 revision；脚本输出是下一步的输入，失败时修复该输入或记录阻塞，不通过旁路工程重新建一条时间轴。

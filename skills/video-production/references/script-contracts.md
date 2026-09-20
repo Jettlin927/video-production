@@ -1,11 +1,17 @@
 # 正式脚本契约
 
-Agent 开始制作前先读本页。这里列出的脚本是正式入口；接口不匹配时报告具体缺口并修改公共脚本及测试，不在 `scratch/` 重写同类脚本。
+Agent 开始制作前先读本页。唯一公开入口是 `scripts/video_production.py`；接口不匹配时报告具体缺口并修改统一 CLI、公共模块及测试，不在 `scratch/` 重写同类脚本。先运行：
+
+```text
+python scripts/video_production.py contract --pretty
+```
+
+该 JSON 从同一套 `argparse` parser 自动生成，包含所有命令的参数、类型、必填项、choices、默认值、底层 runner 和产物；本页解释工作流边界，不重复充当参数事实源。
 
 ## 安装阶段：prepare_workspace.py
 
 ```text
-python scripts/prepare_workspace.py --workspace-root <workspace-root>
+python scripts/video_production.py prepare --workspace-root <workspace-root>
 ```
 
 - 参数：`--workspace-root` 是存放原片、项目和共享依赖的工作区；`--dry-run` 只打印命令。
@@ -16,7 +22,7 @@ python scripts/prepare_workspace.py --workspace-root <workspace-root>
 ## 任务开始：check_env.py
 
 ```text
-python scripts/check_env.py --project-dir <workspace-root> --deep --json --write-tools
+python scripts/video_production.py check --workspace-root <workspace-root> --deep
 ```
 
 - 参数：工作区、可选 `.env`、是否检查网络。
@@ -27,7 +33,7 @@ python scripts/check_env.py --project-dir <workspace-root> --deep --json --write
 ## 通用时间轴：compile_timeline.py
 
 ```text
-python ../talking-head-cut/scripts/compile_timeline.py --selection <selection-plan.json> --transcript <transcript.json> --decisions <pause-decisions.json> --out-dir <work/edit>
+python scripts/video_production.py compile --selection <selection-plan.json> --transcript <transcript.json> --decisions <pause-decisions.json> --out-dir <work/edit>
 ```
 
 - 参数：Agent依照实际内容写出的保留片段、词级转写、逐处语义气口决定；可选采样率。
@@ -38,7 +44,7 @@ python ../talking-head-cut/scripts/compile_timeline.py --selection <selection-pl
 ## 固定字幕格式：caption_pages.py
 
 ```text
-python ../talking-head-cut/scripts/caption_pages.py --words <mapped-words.json> --editorial <caption-editorial.json> --out <work/captions/captions.json>
+python scripts/video_production.py captions --words <mapped-words.json> --editorial <caption-editorial.json> --out <work/captions/captions.json>
 ```
 
 - 参数：编译器产生的 mapped words；Agent填写的 editorial JSON。每页提供有序 `word_keys`、1–2 行、`takeaway`，强调短语提供连续 word keys、`role` 与 `reason`。
@@ -49,7 +55,7 @@ python ../talking-head-cut/scripts/caption_pages.py --words <mapped-words.json> 
 ## 固定渲染器：render_timeline.py
 
 ```text
-python ../talking-head-cut/scripts/render_timeline.py --source <raw.mp4> --plan <edit-plan.json> --captions-ass <captions.ass> --ffmpeg <ffmpeg> --out <output/final.mp4> --encoder auto
+python scripts/video_production.py render --workspace-root <workspace-root> --source <raw.mp4> --plan <edit-plan.json> --captions-ass <captions.ass> --out <output/final.mp4> --encoder auto
 ```
 
 - 参数：任意长度原片、已验证时间轴、可选 ASS、尺寸、编码器和质量参数。
@@ -60,7 +66,7 @@ python ../talking-head-cut/scripts/render_timeline.py --source <raw.mp4> --plan 
 ## 固定技术 QC：qc_delivery.py
 
 ```text
-python ../talking-head-cut/scripts/qc_delivery.py --media <output/final.mp4> --plan <edit-plan.json> --ffmpeg <ffmpeg> --ffprobe <ffprobe> --out <qc/qc.json>
+python scripts/video_production.py qc --workspace-root <workspace-root> --media <output/final.mp4> --plan <edit-plan.json> --out <qc/qc.json>
 ```
 
 - 参数：成片、同 revision 时间轴及共享 FFmpeg 路径。
