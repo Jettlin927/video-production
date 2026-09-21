@@ -9,6 +9,8 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；运行环境继承主 Skill 的唯一环境门。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
 
+普通剪辑与分页重点字幕默认执行主 Skill 的 [固定口播流水线](../video-production/references/stable-talking-head.md)。程序生成索引、选段计划、字幕草稿和工程，Agent只编辑语义数据；`deliver`管理后台渲染、GPU选择、停止和恢复。本页各阶段描述内容质量要求，固定路线的命令与数据格式以该参考为准。用户明确要求复杂滚动动效、补充画面或额外音轨时才进入相应扩展。
+
 ## 1. 接收素材并确定执行路线
 
 - 完整流程交付 MP4＋剪映可编辑草稿，在 `production.json.export_format` 记录 `both`。开始完整视频路线时读取主 Skill 的 [剪映工程导出](../video-production/references/jianying-export.md)，按环境门报告确认导出依赖，保留源片切段及独立字幕、BGM 轨道；两项产物消费同一最终时间轴。

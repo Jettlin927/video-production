@@ -32,6 +32,10 @@ python scripts/video_production.py prepare --workspace-root <workspace-root>
 
 准备脚本一次性创建 `<workspace-root>/video-production-deps/`，其中包括共享 Python venv、固定版本 Node/Remotion 依赖、npm 缓存、FFmpeg/ffprobe 和 `tools.json`。所有视频项目复用这一套依赖；不要等收到视频制作任务后再安装，也不要在每个项目里复制 venv、`node_modules` 或 FFmpeg。
 
+准备阶段同时检测本机 GPU、驱动和 FFmpeg 编码器，实际编码短样后保存到 **`video-production-deps/hardware.json`**，并在 `tools.json`登记路径。支持 NVIDIA NVENC、Intel QSV、AMD AMF；macOS 检测 VideoToolbox。仅“列出编码器”不算可用，失败原因会写入报告。无可用硬件编码器时使用 CPU。
+
+渲染默认 `--encoder auto`，会核对当前硬件/驱动和 FFmpeg。报告失效或超过24小时则重新实测；硬件编码运行失败时记录原因并回退 CPU 一次。要主动重测，运行 `python scripts/video_production.py hardware --workspace-root <workspace-root> --refresh`。报告中的“可用”表示编码可运行，不代表整条解码、字幕、滤镜链都使用 GPU，也不承诺固定提速倍数。
+
 该命令会下载并安装第三方依赖；需要在下载 Skill 时由用户或部署流程明确执行。只想审阅动作时先运行：
 
 ```shell
@@ -56,7 +60,9 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 python scripts/video_production.py check --workspace-root <workspace-root> --deep
 ```
 
-检查不通过就停止制作，回到上一节补齐依赖；不要在任务中反复下载、换临时目录或临时寻找机器上的其他 FFmpeg。Agent 日常只调用 `video_production.py` 的 `init / transcribe / compile / captions / render / qc` 子命令，不直接猜子脚本参数。运行 `python scripts/video_production.py contract --pretty` 可得到从同一套 `argparse` 自动生成的机器可读参数、choices、默认值、runner 和产物契约。详细边界见 [正式脚本契约](skills/video-production/references/script-contracts.md)。时间轴编译器只固化时间数学和数据契约，保留内容、片段、气口和字幕语义由 Agent 根据当次视频决定。
+按检查报告的所选路线处理缺项；固定口播路线不依赖浏览器或 Remotion。普通口播使用 [固定流水线](skills/video-production/references/stable-talking-head.md)：`index → select → compile → caption-draft → caption-build → deliver`。Agent只编辑内容数据；统一CLI提供字幕创作、后台渲染、GPU选择、停止、恢复、QC和剪映工程。用 `contract --command <当前子命令>`获取局部契约，完整接口见 [正式脚本契约](skills/video-production/references/script-contracts.md)。
+
+`deliver`立即返回任务ID；使用`job-status / job-stop / job-resume`管理。完成后读取`output/handoff.json`。输入和代码未变化且产物未变动时复用阶段检查点。长渲染由独立程序执行，不需要Agent长时间sleep或临时写脚本；简短交接文件支持压缩或新上下文恢复，但不会自动改变宿主会话的缓存策略。
 
 ## 使用示例
 

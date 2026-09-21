@@ -1,0 +1,3 @@
+-r requirements-jianying.txt
+# Parse the actual font family and glyph coverage before rendering.
+fonttools==4.59.0

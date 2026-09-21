@@ -1,6 +1,7 @@
 """Compile content-authored selections and pause decisions into one validated timeline."""
 import argparse
 import json
+import hashlib
 from pathlib import Path
 
 from check_timeline import validate
@@ -18,7 +19,10 @@ def save(path, value):
 
 
 def compile_timeline(selection, transcript, decisions, sample_rate=48000):
-    plan, pause_report = apply(selection, transcript, decisions, sample_rate)
+    selected = transcript if transcript['revision'] == selection['revision'] else remap(transcript, selection)
+    plan, pause_report = apply(selection, selected, decisions, sample_rate)
+    revision_input = json.dumps([selection, transcript, decisions, sample_rate], sort_keys=True, ensure_ascii=False)
+    plan['revision'] = 'cut-' + hashlib.sha256(revision_input.encode()).hexdigest()[:20]
     report = validate(plan)
     if report['status'] != 'pass':
         raise ValueError('Compiled timeline is invalid: ' + '; '.join(report['errors']))

@@ -1,12 +1,14 @@
 # 正式脚本契约
 
-Agent 开始制作前先读本页。唯一公开入口是 `scripts/video_production.py`；接口不匹配时报告具体缺口并修改统一 CLI、公共模块及测试，不在 `scratch/` 重写同类脚本。先运行：
+Agent 开始制作前先读本页。公开入口是 `scripts/video_production.py`；制作时编辑内容数据，工具缺陷报告具体错误和恢复路径，由明确的维护任务处理。只获取当前命令的契约：
 
 ```text
-python scripts/video_production.py contract --pretty
+python scripts/video_production.py contract --command caption-build --pretty
 ```
 
 该 JSON 从同一套 `argparse` parser 自动生成，包含所有命令的参数、类型、必填项、choices、默认值、底层 runner 和产物；本页解释工作流边界，不重复充当参数事实源。
+
+普通口播默认按 [固定流水线](stable-talking-head.md) 执行。`index/select`负责索引和选段数据，`caption-draft/caption-build`负责字幕创作，`deliver`串联短样、渲染、QC、剪映导出。它快速返回任务ID，`job-status/job-stop/job-resume`负责状态、进程树停止和检查点恢复。以下旧的原子命令仍保留，供已有工程或明确的局部修正使用。
 
 ## 安装阶段：prepare_workspace.py
 
@@ -61,7 +63,7 @@ python scripts/video_production.py render --workspace-root <workspace-root> --so
 - 参数：任意长度原片、已验证时间轴、可选 ASS、尺寸、编码器和质量参数。
 - 输出：实际采用的 `libx264` 或 `h264_nvenc` 状态 JSON。
 - 产物：`final.mp4`、旁边的 `render.log`。
-- 行为：`auto` 只在 FFmpeg 真正列出 NVENC 时使用 GPU，否则明确回退 CPU；所有片段在同一个通用图中按实际计划拼接。
+- 行为：`auto`核对`video-production-deps/hardware.json`，实测NVENC/QSV/AMF/VideoToolbox并选择可用编码器；设备失败才回退CPU一次并记录。音频与视频分别拼接，保留采样时间轴与累计帧边界；过滤图通过文件传递，避开Windows命令长度上限。
 
 ## 固定技术 QC：qc_delivery.py
 
@@ -71,5 +73,5 @@ python scripts/video_production.py qc --workspace-root <workspace-root> --media 
 
 - 参数：成片、同 revision 时间轴及共享 FFmpeg 路径。
 - 输出：`pass/fail` 状态 JSON和退出码。
-- 产物：UTF-8 `qc.json`，包含 ffprobe 元数据、全片解码、时长差；人工内容和听审保持 `not_checked`。
+- 产物：UTF-8 `qc.json`，包含元数据、全片解码、时长差、帧率、尺寸、帧数和连续PTS检查；人工内容和听审保持 `not_checked`。
 - Windows：所有子进程输出均显式使用 UTF-8 并替换不可解码字节；不要使用 Bash heredoc 或 PowerShell 默认带 BOM 的中间文件。

@@ -29,6 +29,7 @@ import stat
 import sys
 import tempfile
 import time
+import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -549,10 +550,10 @@ def build_report(args):
     record('recommended', 'ffprobe', bool(ffprobe),
            f'{resolved["ffprobe"]["version"]} @ {ffprobe}（{ffprobe_src}）' if ffprobe else '未找到',
            'prepare_broll.py 需要 ffprobe 探测生成素材；ffmpeg 通常自带')
-    record('required', 'node', bool(node),
+    record('recommended', 'node', bool(node),
            f'{resolved["node"]["version"]} @ {node}（{node_src}）' if node else '未找到',
            'Remotion 路线需要 Node.js；建议 LTS >= 18')
-    record('required', 'npm', bool(npm),
+    record('recommended', 'npm', bool(npm),
            f'{resolved["npm"]["version"]} @ {npm}（{npm_src}）' if npm else '未找到',
            '安装 Remotion 工程依赖需要 npm/npx')
 
@@ -574,7 +575,7 @@ def build_report(args):
             if found:
                 browser, browser_src = found, 'PATH'
                 break
-    record('required', 'browser', bool(browser),
+    record('recommended', 'browser', bool(browser),
            f'{browser}（{browser_src}）' if browser else '未找到 Chrome/Chromium',
            'Remotion 渲染需要一个浏览器可执行文件；可用 REMOTION_BROWSER_EXECUTABLE 指定')
 
@@ -597,6 +598,10 @@ def build_report(args):
         numpy_info, numpy_ok = '未安装', False
     record('recommended', 'numpy', numpy_ok, numpy_info,
            'speech_checks.py 的波形同步质检需要 numpy：python -m pip install numpy')
+    for name, module in [('fonttools', 'fontTools'), ('jianying', 'pyJianYingDraft')]:
+        found = importlib.util.find_spec(module) is not None
+        record('recommended', name, found, '已安装' if found else '未安装',
+               '在共享 venv 中安装 scripts/requirements-runtime.txt')
 
     # ---- disk ----
     disk = disk_report(args.output_dir)
@@ -630,6 +635,7 @@ def build_report(args):
     def ready(*items):
         return all(ok(k) for k in items)
     report['routes'] = {
+        '固定口播（FFmpeg 字幕＋剪映工程）': ready('python', 'ffmpeg', 'ffprobe', 'fonttools', 'jianying', 'fonts'),
         '字幕/转写（百炼 ASR）': ready('python', 'ffmpeg', 'dashscope_key', 'skill_files'),
         '口播本地脚本（选内容/气口/字幕）': ready('python', 'skill_files', 'skill_layout'),
         '波形同步质检': ready('python', 'numpy'),
@@ -669,6 +675,7 @@ def build_report(args):
             'python': shared_python or sys.executable,
             'ffmpeg': ffmpeg, 'ffprobe': ffprobe, 'node': node, 'npm': npm, 'browser': browser,
             **({'project_root': str(args.project_dir),
+                'hardware_report': str(shared / 'hardware.json'),
                 'ffmpeg_bin_dir': str(project_bin),
                 'remotion': remotion,
                 'node_modules': node_modules,

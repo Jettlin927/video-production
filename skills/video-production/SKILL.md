@@ -67,20 +67,20 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 ## 主干道：默认按这一条走
 
 1. **建项目**：确认 route 和简短项目名，执行统一 CLI 的 `init --workspace-root ... --route ... --name ... --source ...`；复用已有任务时读取其 `production.json`，不另建 `-v2` 目录。
-2. **环境门**：以 `<workspace-root>` 运行 `check_env.py --project-dir`；缺失的共享 FFmpeg/ffprobe 由同一命令的 `--install` 补齐，生成 `video-production-deps/tools.json`。
+2. **环境门**：运行统一 CLI 的 `check --workspace-root`，消费共享 `tools.json`；按所选路线判断缺项，安装由准备阶段的 `prepare` 完成。
 3. **路由**：确认附件、目标和输出范围，只选择一个 `route`，完善 `production.json`；不为了寻找“更好的工具”新增路线。
 4. **建立唯一时间轴**：
    - 仅转写：探测媒体 → 转写 → 词级 JSON/可读稿/SRT → 文字质检。
-   - 真人口播：探测媒体 → 词级转写 → 内容选择 → 气口决策 → `edit-plan.json` → 词映射/字幕 → 渲染 → 技术与听审 QC。
+   - 真人口播：默认读取 [固定口播流水线](references/stable-talking-head.md)，用 `index → select → compile → caption-draft → caption-build → deliver`。Agent编辑选段、气口和字幕数据；程序完成衔接、后台渲染、QC和导出。复杂动效与补充画面按用户目标另走对应参考。
    - 钩子/分镜/素材：脚本或分镜 → 时间轴计划 → 需要时生成/准备素材 → 渲染 → 文件与画面 QC。
 5. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
 
-主干中的每一步都以文件产物作为下一步输入。时间轴、字幕、渲染和 QC 使用 [正式脚本契约](references/script-contracts.md) 的入口；接口缺口应修复公共脚本及测试，不在 `scratch/` 重写同类脚本。某一步失败时修复该阶段的内容输入或报告阻塞；不要跳到另一条工具路线、重建第二条时间轴或用成片存在代替 QC。
+主干中的每一步都以文件产物作为下一步输入。时间轴、字幕、渲染和 QC 使用 [正式脚本契约](references/script-contracts.md) 的入口。内容输入错误按批量诊断修正；公共工具缺陷报告失败阶段与可恢复路径，由明确的维护任务处理。制作任务保留同一时间轴和既有检查点。
 
 ## Agent 执行约束
 
 - 环境门只跑一次；主 Skill 将同一份结果传给子 Skill。子 Skill 不重复探测 PATH、缓存、浏览器、字体或模型，也不重新寻找 FFmpeg。
-- 先运行统一 CLI 的 `contract` 获取机器可读接口，再查看对应子命令 `--help`、现有产物和 JSON/TSV 小查询。只有契约、帮助和产物不足以解释错误时，才按符号或行范围读取源码；默认不整篇读取 `.py`/`.tsx`。
+- 先运行统一 CLI 的 `contract --command <当前子命令>` 获取当前接口，再查看对应 `--help` 和 JSON/TSV。只有错误诊断不足以解释阻塞时，才按符号或行范围读取源码。
 - 大型转写只生成一次紧凑索引（如 utterance/word TSV），后续内容选择、气口和字幕都复用索引；不要在每个阶段重新读取完整转写或重新写一套 dump 脚本。
 - 小范围画面验证使用 `scripts/sample_frames.py --ranges START:END,...`；它按每个时间窗口 seek 后再 concat。不要用全片 `select` 只取少数帧，否则仍会顺序解码整个 HEVC 文件。
 - 每个任务只保留一条 canonical 时间轴和一份 revision；脚本输出是下一步的输入，失败时修复该输入或记录阻塞，不通过旁路工程重新建一条时间轴。

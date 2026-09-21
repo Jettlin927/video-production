@@ -28,12 +28,14 @@ def commands(workspace, skill_root, python=sys.executable):
     npm = 'npm.cmd' if os.name == 'nt' else 'npm'
     return [
         [python, '-m', 'venv', deps / 'venv'],
-        [venv_python, '-m', 'pip', 'install', '-r', skill_root / 'scripts' / 'requirements-jianying.txt'],
+        [venv_python, '-m', 'pip', 'install', '-r', skill_root / 'scripts' / 'requirements-runtime.txt'],
         [npm, 'install', '--ignore-scripts', '--cache', deps / 'npm-cache'],
         [venv_python, skill_root / 'scripts' / 'check_env.py', '--project-dir', workspace,
          '--install', '--write-tools'],
         [venv_python, skill_root / 'scripts' / 'check_env.py', '--project-dir', workspace,
          '--deep', '--json', '--write-tools'],
+        [venv_python, skill_root / 'scripts' / 'hardware.py', '--workspace-root', workspace,
+         '--report', deps / 'hardware.json', '--refresh'],
     ]
 
 
@@ -51,9 +53,9 @@ def main(argv=None):
         return 0
     node.mkdir(parents=True, exist_ok=True)
     (workspace / 'video-production-deps' / 'requirements.txt').write_text(
-        (skill_root / 'scripts' / 'requirements-jianying.txt').read_text(encoding='utf-8'), encoding='utf-8')
+        '-r "' + str(skill_root / 'scripts' / 'requirements-runtime.txt') + '"\n', encoding='utf-8')
     (node / 'package.json').write_text(json.dumps(package_manifest(), indent=2), encoding='utf-8')
-    run(plan[0]); run(plan[1]); run(plan[2], node); run(plan[3]); run(plan[4])
+    run(plan[0]); run(plan[1]); run(plan[2], node); run(plan[3]); run(plan[4]); run(plan[5])
     return 0
 
 

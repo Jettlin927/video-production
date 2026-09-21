@@ -5,6 +5,16 @@ from map_words import remap
 
 
 class SemanticPacingTests(unittest.TestCase):
+    def test_compiler_accepts_source_words_and_changes_revision_with_decisions(self):
+        from compile_timeline import compile_timeline
+        plan, source, words, decisions = self.fixture()
+        first = compile_timeline(plan, source, decisions)[0]
+        same = compile_timeline(plan, source, decisions)[0]
+        decisions['boundaries'][0]['target_ms'] = 40
+        changed = compile_timeline(plan, source, decisions)[0]
+        self.assertEqual(first['revision'], same['revision'])
+        self.assertNotEqual(first['revision'], changed['revision'])
+
     def fixture(self):
         plan={'revision':'r','fps':{'num':25,'den':1},'source':{'duration_s':5,'fps':{'num':50,'den':1}},'duration_frames':50,
               'segments':[{'id':'a','source_in_s':1.,'source_out_s':2.,'final_in_s':0.,'final_out_s':1.},

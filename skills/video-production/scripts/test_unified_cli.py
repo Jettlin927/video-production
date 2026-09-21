@@ -12,10 +12,12 @@ class UnifiedCliTests(unittest.TestCase):
         parser = cli.build_parser()
         contract = cli.parser_contract(parser)
         self.assertEqual(set(contract['commands']),
-                         {'prepare', 'check', 'init', 'transcribe', 'compile', 'captions', 'render', 'qc'})
+                         {'prepare', 'check', 'init', 'transcribe', 'compile', 'captions', 'render', 'qc',
+                          'hardware', 'index', 'select', 'pause-prepare', 'caption-draft', 'caption-build',
+                          'export', 'deliver', 'job-status', 'job-stop', 'job-resume'})
         render = contract['commands']['render']
         encoder = next(a for a in render['arguments'] if a['dest'] == 'encoder')
-        self.assertEqual(encoder['choices'], ['auto', 'libx264', 'h264_nvenc'])
+        self.assertEqual(encoder['choices'], ['auto', 'libx264', 'h264_nvenc', 'h264_qsv', 'h264_amf', 'h264_videotoolbox'])
         self.assertEqual(encoder['default'], 'auto')
         self.assertTrue(next(a for a in render['arguments'] if a['dest'] == 'source')['required'])
         self.assertIn('<out-dir>/render.log', render['outputs'])

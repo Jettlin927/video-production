@@ -3,6 +3,7 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
+from fractions import Fraction
 
 
 def run(command, check=False):
@@ -30,8 +31,26 @@ def main(argv=None):
         findings.append({'check': 'ffprobe_json', 'status': 'fail', 'detail': probe.stderr})
     decode = run([args.ffmpeg, '-v', 'error', '-nostdin', '-i', args.media, '-map', '0:v:0', '-map', '0:a:0?',
                   '-f', 'null', '-'])
-    findings.append({'check': 'full_decode', 'status': 'pass' if decode.returncode == 0 else 'fail',
+    findings.append({'check': 'full_decode', 'status': 'pass' if decode.returncode == 0 and not decode.stderr.strip() else 'fail',
                      'detail': decode.stderr[-4000:]})
+    video = next((s for s in metadata.get('streams', []) if s.get('codec_type') == 'video'), {})
+    expected_fps = Fraction(plan['fps']['num'], plan['fps']['den'])
+    actual_fps = Fraction(video.get('r_frame_rate', '0/1'))
+    findings.append({'check': 'fps', 'status': 'pass' if actual_fps == expected_fps else 'fail',
+                     'actual': str(actual_fps), 'expected': str(expected_fps)})
+    if 'width' in plan and 'height' in plan:
+        findings.append({'check': 'dimensions', 'status': 'pass' if
+                         (video.get('width'), video.get('height')) == (plan['width'], plan['height']) else 'fail'})
+    frame_probe = run([args.ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+                       'frame=best_effort_timestamp_time', '-of', 'json', args.media])
+    try:
+        frames = json.loads(frame_probe.stdout)['frames']
+        max_error = max(abs(float(f['best_effort_timestamp_time']) - i / float(expected_fps)) for i, f in enumerate(frames))
+        continuous = len(frames) == plan['duration_frames'] and max_error <= .00001
+        findings.append({'check': 'frame_timeline', 'status': 'pass' if continuous else 'fail',
+                         'frames': len(frames), 'expected_frames': plan['duration_frames'], 'max_pts_error_s': max_error})
+    except (KeyError, ValueError):
+        findings.append({'check': 'frame_timeline', 'status': 'fail', 'detail': frame_probe.stderr[-1000:]})
     duration = float((metadata.get('format') or {}).get('duration') or 0)
     expected = float(plan.get('audio_duration_s') or plan.get('duration_s') or 0)
     delta = abs(duration - expected)

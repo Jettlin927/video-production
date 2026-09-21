@@ -3,37 +3,57 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
+import os
+import sys
+import tempfile
+import shutil
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'video-production/scripts'))
+from managed_job import lock, contain_worker, write as write_state
+from hardware import detect, ENCODERS
 
 from check_timeline import validate
 
 
-def run(command):
-    return subprocess.run([str(x) for x in command], capture_output=True, text=True,
-                          encoding='utf-8', errors='replace')
-
-
-def encoders(ffmpeg):
-    result = run([ffmpeg, '-hide_banner', '-encoders'])
-    return result.stdout + result.stderr
-
-
-def choose_encoder(ffmpeg, requested):
+def choose_encoder(ffmpeg, requested, report_path=None):
     if requested != 'auto':
         return requested
-    return 'h264_nvenc' if 'h264_nvenc' in encoders(ffmpeg) else 'libx264'
+    report = detect(Path(ffmpeg), report_path)
+    if not report['ready']:
+        raise ValueError('No tested encoder is usable; inspect hardware report')
+    return report['selected_encoder']
 
 
 def graph(plan, width, height, captions=False):
-    count = len(plan['segments'])
+    """Separate audio/sample and video/frame concatenation; pad only the final tail.
+
+    Pairwise AV concat waits for the longer stream at every seam. Padding every audio
+    segment to the video frame length instead changes the canonical word/sample mapping.
+    Independent concatenation preserves both grids without cumulative audio edits.
+    """
+    segments = plan['segments']
+    count = len(segments)
+    fps = plan['fps']['num'] / plan['fps']['den']
+    sr = plan.get('sample_rate', 48000)
     rows = [f'[0:v]split={count}' + ''.join(f'[vs{i}]' for i in range(count)),
-            f'[0:a]asplit={count}' + ''.join(f'[as{i}]' for i in range(count))]
-    for i, segment in enumerate(plan['segments']):
+            f'[0:a]aresample={sr},asplit={count}' + ''.join(f'[as{i}]' for i in range(count))]
+    for i, segment in enumerate(segments):
         a, b = segment['source_in_s'], segment['source_out_s']
-        rows += [f'[vs{i}]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={width}:{height}:flags=lanczos[v{i}]',
-                 f'[as{i}]atrim=start={a:.9f}:end={b:.9f},asetpts=PTS-STARTPTS[a{i}]']
-    inputs = ''.join(f'[v{i}][a{i}]' for i in range(len(plan['segments'])))
-    rows.append(f'{inputs}concat=n={len(plan["segments"])}:v=1:a=1[vcat][aout]')
-    rows.append('[vcat]ass=captions.ass[vout]' if captions else '[vcat]null[vout]')
+        frames = round(segment['final_out_s'] * fps) - round(segment['final_in_s'] * fps)
+        if frames <= 0:
+            raise ValueError('Video segment below one frame')
+        chain = (f'trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,fps={fps:g},'
+                 f'tpad=stop_mode=clone:stop=2,trim=end_frame={frames},setpts=N/({fps:g}*TB)')
+        # Source sample bounds are computed once; no per-segment silence or duration change.
+        audio = f'atrim=start_sample={round(a * sr)}:end_sample={round(b * sr)},asetpts=N/SR/TB'
+        rows.append(f'[vs{i}]{chain},scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,'
+                    f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v{i}]')
+        rows.append(f'[as{i}]{audio}[a{i}]')
+    rows.append(''.join(f'[v{i}]' for i in range(count)) +
+                f"concat=n={count}:v=1:a=0,tpad=stop_mode=clone:stop=1,trim=end_frame={plan['duration_frames']},setpts=N/({fps:g}*TB)[vcat]")
+    rows.append(''.join(f'[a{i}]' for i in range(count)) +
+                f"concat=n={count}:v=0:a=1,apad,atrim=end_sample={round(plan['duration_frames'] / fps * sr)}[aout]")
+    rows.append('[vcat]ass=captions.ass:fontsdir=fonts[vout]' if captions else '[vcat]null[vout]')
     return ';'.join(rows)
 
 
@@ -45,7 +65,8 @@ def main(argv=None):
     parser.add_argument('--ffmpeg', type=Path, required=True)
     parser.add_argument('--captions-ass', type=Path)
     parser.add_argument('--width', type=int, default=1920); parser.add_argument('--height', type=int, default=1080)
-    parser.add_argument('--encoder', choices=('auto', 'libx264', 'h264_nvenc'), default='auto')
+    parser.add_argument('--encoder', choices=('auto', 'libx264', *ENCODERS), default='auto')
+    parser.add_argument('--hardware-report', type=Path)
     parser.add_argument('--preset', default='medium'); parser.add_argument('--crf', type=int, default=18)
     args = parser.parse_args(argv)
     args.source = args.source.resolve()
@@ -59,23 +80,58 @@ def main(argv=None):
     if report['status'] != 'pass':
         raise SystemExit('invalid timeline: ' + '; '.join(report['errors']))
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    work = args.out.parent / '.render-timeline'
-    work.mkdir(exist_ok=True)
-    if args.captions_ass:
-        (work / 'captions.ass').write_bytes(args.captions_ass.read_bytes())
-    encoder = choose_encoder(args.ffmpeg, args.encoder)
-    command = [args.ffmpeg, '-v', 'warning', '-nostdin', '-i', args.source,
-               '-filter_complex', graph(plan, args.width, args.height, bool(args.captions_ass)),
-               '-map', '[vout]', '-map', '[aout]', '-c:v', encoder]
-    command += (['-preset', args.preset, '-crf', args.crf] if encoder == 'libx264'
-                else ['-preset', 'p5', '-cq', args.crf])
-    command += ['-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-y', args.out]
-    result = subprocess.run([str(x) for x in command], cwd=work, capture_output=True, text=True,
-                            encoding='utf-8', errors='replace')
-    (args.out.parent / 'render.log').write_text(result.stdout + result.stderr, encoding='utf-8')
-    if result.returncode:
-        raise SystemExit(f'ffmpeg failed ({result.returncode}); see {args.out.parent / "render.log"}')
-    print(json.dumps({'status': 'pass', 'encoder': encoder, 'output': str(args.out)}, ensure_ascii=False))
+    if args.source == args.out:
+        raise ValueError('Output must not overwrite source media')
+    job_handle = contain_worker()
+    with lock(args.out.parent / ('.' + args.out.name + '.lock')):
+        with tempfile.TemporaryDirectory(prefix='.render-', dir=args.out.parent) as directory:
+            work = Path(directory)
+            if args.captions_ass:
+                (work / 'captions.ass').write_bytes(args.captions_ass.read_bytes())
+                font_dir = args.captions_ass.parent / 'fonts'
+                if not font_dir.is_dir():
+                    raise ValueError('Caption fonts directory missing; run caption-build')
+                shutil.copytree(font_dir, work / 'fonts')
+            (work / 'graph.txt').write_text(graph(plan, args.width, args.height, bool(args.captions_ass)), encoding='utf-8')
+            encoder = choose_encoder(args.ffmpeg, args.encoder, args.hardware_report)
+            command = [args.ffmpeg, '-v', 'warning', '-nostdin', '-i', args.source,
+                       '-/filter_complex', 'graph.txt', '-progress', str(args.out.parent / 'render-progress.txt'),
+                       '-map', '[vout]', '-map', '[aout]', '-c:v', encoder]
+            options = {'libx264': ['-preset', args.preset, '-crf', args.crf],
+                       'h264_nvenc': ['-preset', 'p5', '-cq', args.crf],
+                       'h264_qsv': ['-preset', 'medium', '-global_quality', args.crf],
+                       'h264_amf': ['-quality', 'quality', '-rc', 'cqp', '-qp_i', args.crf, '-qp_p', args.crf],
+                       'h264_videotoolbox': ['-b:v', '10M']}
+            command += options[encoder]
+            command += ['-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-y', work / 'encoded.mp4']
+            with (args.out.parent / 'render.log').open('wb') as log:
+                result = subprocess.run([str(x) for x in command], cwd=work, stdout=log, stderr=log)
+            fallback = None
+            if result.returncode and args.encoder == 'auto' and encoder != 'libx264':
+                error = (args.out.parent / 'render.log').read_text(encoding='utf-8', errors='replace')
+                # Retry only encoder/device failures, not broken graphs, fonts or bad source media.
+                markers = ('Error while opening encoder', 'Error initializing an internal MFX session',
+                           'Cannot load nvcuda', 'Failed to create  hardware device context')
+                if any(marker in error for marker in markers):
+                    fallback = {'from': encoder, 'reason': error[-3000:]}
+                    start = command.index('-c:v')
+                    end = command.index('-pix_fmt')
+                    command[start:end] = ['-c:v', 'libx264', *options['libx264']]
+                    encoder = 'libx264'
+                    with (args.out.parent / 'render.log').open('ab') as log:
+                        log.write(b'\nAUTO FALLBACK: hardware encoder failed; retrying libx264 once\n')
+                        result = subprocess.run([str(x) for x in command], cwd=work, stdout=log, stderr=log)
+                    if args.hardware_report and args.hardware_report.exists():
+                        hardware = json.loads(args.hardware_report.read_text(encoding='utf-8'))
+                        hardware['encoders'][fallback['from']].update(usable=False, runtime_failure=fallback['reason'])
+                        hardware['selected_encoder'] = 'libx264'
+                        write_state(args.hardware_report, hardware)
+            if result.returncode:
+                raise SystemExit(f'ffmpeg failed ({result.returncode}); see {args.out.parent / "render.log"}')
+            os.replace(work / 'encoded.mp4', args.out)
+    report = {'status': 'pass', 'encoder': encoder, 'output': str(args.out), 'fallback': fallback}
+    write_state(args.out.parent / 'render-result.json', report)
+    print(json.dumps(report, ensure_ascii=False))
     return 0
 
 

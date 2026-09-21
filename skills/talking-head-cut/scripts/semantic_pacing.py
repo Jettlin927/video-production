@@ -120,9 +120,11 @@ def apply(plan, words_doc, decisions, sample_rate=48000):
             if ve <= vf:
                 raise ValueError('Video segment below one frame; preserve this pause and review')
             result.append(s);cursor += b-a
+    # The declared delivery length is the ceiling frame count and carries the sub-frame tail
+    # pad. Each segment, including the last, keeps the rounded bounds it was built with,
+    # because check_timeline requires final_out_frame == round(final_out_s * fps); forcing
+    # the last segment onto the ceiling made every non-frame-aligned cut fail that check.
     frames = math.ceil(cursor/sample_rate*fps-1e-7)
-    result[-1]['final_out_frame']=frames
-    result[-1]['duration_frames']=frames-result[-1]['final_in_frame']
     new = {**plan,'revision':plan['revision']+'-semantic','previous_revision':plan['revision'],
            'segments':result,'duration_s':frames/fps,'duration_frames':frames,
            'audio_duration_s':cursor/sample_rate,'audio_samples':cursor,'sample_rate':sample_rate,

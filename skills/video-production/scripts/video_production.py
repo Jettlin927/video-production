@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from hardware import ENCODERS
 
 
 HERE = Path(__file__).resolve().parent
@@ -87,7 +88,7 @@ def build_parser():
     add_path(p, '--out', 'Final MP4 path.')
     add_path(p, '--captions-ass', 'Optional ASS subtitle file.', required=False)
     p.add_argument('--width', type=int, default=1920); p.add_argument('--height', type=int, default=1080)
-    p.add_argument('--encoder', choices=('auto', 'libx264', 'h264_nvenc'), default='auto')
+    p.add_argument('--encoder', choices=('auto', 'libx264', *ENCODERS), default='auto')
     p.add_argument('--preset', default='medium'); p.add_argument('--crf', type=int, default=18)
 
     p = command(sub, 'qc', 'Run Windows-safe deterministic technical delivery QC.',
@@ -97,8 +98,58 @@ def build_parser():
     add_path(p, '--plan', 'The exact edit-plan.json used for rendering.')
     add_path(p, '--out', 'QC JSON output path.')
 
+    p = command(sub, 'hardware', 'Inventory GPUs and test actual encoder initialization.',
+                HERE / 'hardware.py', ['video-production-deps/hardware.json'])
+    add_path(p, '--workspace-root', 'Prepared workspace.')
+    p.add_argument('--refresh', action='store_true')
+
+    def author(name, description):
+        child = command(sub, name, description, TALKING / 'authoring.py', ['--out files'])
+        child.set_defaults(_action=name)
+        return child
+    p = author('index', 'Create a compact word TSV and editable selection range template.')
+    add_path(p, '--transcript', 'Cached transcript.source.json.')
+    add_path(p, '--out', 'Index directory.')
+    p = author('select', 'Turn authored word ranges into a probed selection and pause candidates.')
+    for flag in ['workspace-root', 'transcript', 'selection', 'source', 'out']:
+        add_path(p, '--' + flag, flag)
+    p.add_argument('--fps', type=int, default=30)
+    p.add_argument('--width', type=int); p.add_argument('--height', type=int)
+    p = command(sub, 'pause-prepare', 'Prepare all pause decisions from selected words.',
+                TALKING / 'semantic_pacing.py', ['pause-decisions.json'])
+    p.set_defaults(_prepare=True)
+    add_path(p, '--words', 'words.selected.json.')
+    add_path(p, '--out', 'Output directory.')
+    p = author('caption-draft', 'Generate editable word-range pages; never match retyped text.')
+    add_path(p, '--words', 'mapped-words.json.')
+    add_path(p, '--plan', 'edit-plan.json.')
+    add_path(p, '--out', 'New caption-authoring.json file.')
+    p = author('caption-build', 'Validate all pages together; emit captions JSON, SRT, ASS and fonts.')
+    for flag in ['words', 'plan', 'draft', 'out']:
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--font', 'Optional real font file; defaults to bundled Source Han Sans.', required=False)
+    p = command(sub, 'export', 'Export editable Jianying draft from the same timeline.',
+                HERE / 'export_jianying.py', ['--out draft directory'])
+    add_path(p, '--plan', 'edit-plan.json with width/height.')
+    add_path(p, '--captions', 'captions.json.', required=False)
+    add_path(p, '--layers', 'Optional independent tracks.', required=False)
+    add_path(p, '--out', 'New draft directory.')
+    p = command(sub, 'deliver', 'Start a background render/QC/draft job; reuse verified checkpoints on resume.',
+                HERE / 'delivery.py', ['<out-dir>/handoff.json', '<out-dir>/<signature>/**'])
+    for flag in ['workspace-root', 'plan', 'captions-dir', 'out-dir']:
+        add_path(p, '--' + flag, flag)
+    p.add_argument('--encoder', choices=('auto', 'libx264', *ENCODERS), default='auto')
+    p.add_argument('--preset', default='medium'); p.add_argument('--crf', type=int, default=18)
+    p.add_argument('--foreground', action='store_true', help='For local checks; normal Agent work uses background jobs.')
+    for name in ['status', 'stop', 'resume']:
+        p = command(sub, 'job-' + name, 'Read/control the existing local delivery job.',
+                    HERE / 'managed_job.py', ['job state JSON'])
+        p.set_defaults(_action=name)
+        add_path(p, '--job-dir', 'The job_dir returned by deliver.')
+
     p = sub.add_parser('contract', help='Print the machine-readable CLI contract derived from argparse.')
     p.add_argument('--pretty', action='store_true', help='Indent JSON output.')
+    p.add_argument('--command', dest='only_command', help='Return just one command to keep model context small.')
     p.set_defaults(_command='contract')
     return parser
 
@@ -149,14 +200,18 @@ def forwarded(args):
     command = args._command
     values = vars(args)
     out = []
-    skip = {'command', '_command', '_script', '_outputs'}
+    skip = {'command', '_command', '_script', '_outputs', '_action', '_prepare', 'foreground'}
+    if values.get('_action'):
+        out.append(values['_action'])
+    if values.get('_prepare'):
+        out.append('--prepare')
     for dest, value in values.items():
         if dest in skip or value is None or value is False or value == []:
             continue
         if dest == 'workspace_root':
             if command == 'check':
                 flag = '--project-dir'
-            elif command in ('prepare', 'init'):
+            elif command in ('prepare', 'init', 'deliver', 'hardware'):
                 flag = '--workspace-root'
             else:
                 continue
@@ -174,7 +229,10 @@ def forwarded(args):
     if command == 'transcribe':
         out += ['--ffmpeg', tools(args.workspace_root)['ffmpeg']]
     if command == 'render':
-        out += ['--ffmpeg', tools(args.workspace_root)['ffmpeg']]
+        out += ['--hardware-report', str(args.workspace_root.resolve() / 'video-production-deps/hardware.json'),
+                '--ffmpeg', tools(args.workspace_root)['ffmpeg']]
+    if command == 'select':
+        out += ['--ffprobe', tools(args.workspace_root)['ffprobe']]
     if command == 'qc':
         resolved = tools(args.workspace_root)
         out += ['--ffmpeg', resolved['ffmpeg'], '--ffprobe', resolved['ffprobe']]
@@ -185,9 +243,24 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args._command == 'contract':
-        print(json.dumps(parser_contract(parser), ensure_ascii=False, indent=2 if args.pretty else None))
+        value = parser_contract(parser)
+        if args.only_command:
+            if args.only_command not in value['commands']:
+                parser.error('Unknown contract command')
+            value['commands'] = {args.only_command: value['commands'][args.only_command]}
+        print(json.dumps(value, ensure_ascii=False, indent=2 if args.pretty else None))
         return 0
-    command_line = [sys.executable, args._script, *forwarded(args)]
+    runtime = sys.executable
+    if (getattr(args, 'workspace_root', None) and args._command not in ('prepare', 'init')
+            and (args.workspace_root / 'video-production-deps/tools.json').is_file()):
+        configured = tools(args.workspace_root).get('python')
+        if configured and Path(configured).is_file():
+            runtime = configured
+    command_line = [runtime, args._script, *forwarded(args)]
+    if args._command == 'deliver' and not args.foreground:
+        from managed_job import start
+        print(json.dumps(start(args.out_dir / '.job', command_line), ensure_ascii=False))
+        return 0
     return subprocess.run([str(x) for x in command_line]).returncode
 
 
