@@ -1,6 +1,6 @@
 # 固定口播流水线
 
-用于普通真人剪辑、分页字幕和重点短语。Agent 只编辑内容数据：选段范围、气口决定、字幕分组/强调/校字。时间计算、索引、词ID映射、字体、渲染、停止、QC和剪映导出由统一 CLI 完成。复杂滚动动效、补充画面或额外音轨按对应参考执行，不在这条基础路线内临时搭 Remotion 工程。
+用于普通真人剪辑、分页字幕和重点短语。Agent 只编辑内容数据：选段范围、气口决定、字幕分组/强调/校字。时间计算、索引、词ID映射、字体、渲染、停止、QC和剪映导出由统一 CLI 完成。复杂滚动动效或额外音轨按对应参考执行，不在这条基础路线内临时搭 Remotion 工程。
 
 使用 `video-production-deps/tools.json` 中的 Python 运行 `<skill-root>/scripts/video_production.py`。下面的 `vp` 表示这两个绝对路径组成的命令，不要求安装额外可执行文件。参数不清楚时运行 `vp contract --command <子命令>`，只读取当前阶段的契约。
 
@@ -12,15 +12,15 @@
 vp index --transcript <transcript.source.json> --out <work/index>
 ```
 
-产物是紧凑 `words.tsv` 和 `selection.json`。Agent 按索引填写 `ranges`，每项只有 `first`、`last`（从1开始、包含两端）和 `reason`。范围顺序就是成片顺序；根据原声判断重拍、独有观点和误识别，不重写文案来反查词ID。
+产物是保留说话人字段的 `words.tsv`、`utterances.tsv`、`recording-review.json` 和 `selection.json`。选段前读取 [拍摄角色与多次复述](../../talking-head-cut/references/recording-roles.md)，确认拍摄模式、主角/领读角色及同句各 take；ASR 只有一个 speaker 也须核对低声领读。Agent 按索引填写 `ranges`，每项只有 `first`、`last`（从1开始、包含两端）和 `reason`。范围顺序就是成片顺序；保留原有内容选择和重排能力，在已确认的主角版本中比较重拍，不重写文案来反查词ID。
 
 ```text
-vp select --workspace-root <workspace> --source <raw> --transcript <transcript.source.json> --selection <work/index/selection.json> --out <work/edit>
+vp select --workspace-root <workspace> --source <raw> --transcript <transcript.source.json> --selection <work/index/selection.json> --review <work/index/recording-review.json> --out <work/edit>
 ```
 
 程序探测源帧率、旋转和尺寸，生成 `selection-plan.json`、`words.selected.json`、`pause-decisions.json`。缺省成片30fps、保持显示宽高比、短边不超过1080；用户指定规格时显式传 `--fps --width --height`。只做原速单源剪辑；不能把多原片当成一个source。
 
-完成条件：选择范围无重复和跨词切口，实际规格写入计划。
+完成条件：保留范围全部为已确认主角，已标注的重拍组只选一个 take，无领读/未知声音区间、重复词和跨词切口，实际规格与角色表写入计划。角色关系一次核对后复用，只补异常范围，不逐句重复填表。角色表缺失或过期时先补核对；重跑 index 不覆盖已有人工决定。
 
 ## 2. 气口和时间轴
 

@@ -113,6 +113,7 @@ def build_parser():
     p = author('select', 'Turn authored word ranges into a probed selection and pause candidates.')
     for flag in ['workspace-root', 'transcript', 'selection', 'source', 'out']:
         add_path(p, '--' + flag, flag)
+    add_path(p, '--review', 'Reviewed recording-review.json: performer/prompt roles, repeated takes and excluded audio.')
     p.add_argument('--fps', type=int, default=30)
     p.add_argument('--width', type=int); p.add_argument('--height', type=int)
     p = command(sub, 'pause-prepare', 'Prepare all pause decisions from selected words.',

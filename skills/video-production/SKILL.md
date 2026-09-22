@@ -1,11 +1,11 @@
 ---
 name: video-production
-description: 视频制作与视频/录音转字幕入口。按素材和目标路由到百炼转写、真人口播剪辑、分镜制作或单条生成素材流程，并复用字幕字体资源。
+description: 视频制作与视频/录音转字幕入口。按素材和目标路由到百炼转写、真人口播剪辑、钩子或分镜制作流程，并复用字幕字体资源。
 ---
 
 # 视频制作主 Skill
 
-识别用户目标后，先建立规范项目目录并通过环境门，再选择一个主流程；保持用户的素材、风格、时长和授权，不把所有视频都当真人口播。
+识别用户目标后，先建立规范项目目录并通过环境门，再选择一个主流程；保持用户的素材、风格、时长和授权，不把所有视频都当真人口播。空镜的生成、内容规划、插入与时长节奏由后续剪辑师处理，不属于本 Skill。
 
 ## 工作区与项目目录
 
@@ -43,24 +43,20 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 ├─ 有原片，核心是保留真人原声表达？
 │  ├─ 是：真人讲述/知识分享/口播 → talking-head-cut 子 Skill
 │  └─ 否：现有素材混剪/其他剪辑 → route=existing-edit；只复用当前工程已有时间轴，没有工程时先确认剪辑范围
-├─ 没有真人原片，只有文案/脚本/主题？
-│  ├─ 目标是钩子/推广，接受纯排版动画（动态 PPT） → hook-video 子 Skill
-│  └─ 其他分镜视频 → 本 Skill 的 references/storyboard.md
-└─ 只要一张图或一个视频片段作为制作素材？
-   └─ 生成素材 → references/generated-media.md 的百炼脚本
+└─ 没有真人原片，只有文案/脚本/主题？
+   ├─ 目标是钩子/推广，接受纯排版动画（动态 PPT） → hook-video 子 Skill
+   └─ 其他分镜视频 → 本 Skill 的 references/storyboard.md
 ```
 
 一句“生成一段口播”可能指剪已有真人录像或从文案造数字人口播；先检查附件与原片，只有这个区别影响后续时才简短澄清。没有真人原片时不承诺口型克隆、声音克隆或数字人能力。仅改字幕/换某镜头时沿用既有工程做局部修正。
-
-混合任务如“剪口播，补几段 AI 图片和视频”仍以口播为主流程，再调用公共素材能力；不丢弃原声重做一条纯生成视频。
 
 ## 路由调用约定
 
 真人口播读 [talking-head-cut/SKILL.md](../talking-head-cut/SKILL.md)。这是子 Skill，直接在当前任务执行，不自动新建任务或派生 Agent。用户日常只需提供 raw＋风格；主 Skill 负责识别，无需用户记住子 Skill 名称。直接调用子 Skill 也保持可用。
 
-钩子视频读 [hook-video/SKILL.md](../hook-video/SKILL.md)，同为子 Skill，同一执行约定。用户只需提供宣传方向（加可选受众/CTA/时长）；路由到钩子视频后执行子流程的"钩子脚本 → 配音与时间戳 → 排版计划 → Remotion 制作 → 验收交付"。零实拍：画面由排版动画与生成配图构成，不伪造真人镜头或数据截图。
+钩子视频读 [hook-video/SKILL.md](../hook-video/SKILL.md)，同为子 Skill，同一执行约定。用户只需提供宣传方向（加可选受众/CTA/时长）；路由到钩子视频后执行子流程的"钩子脚本 → 配音与时间戳 → 排版计划 → Remotion 制作 → 验收交付"。零实拍：画面由排版动画与已有配图构成，不伪造真人镜头或数据截图。
 
-路由到真人口播后，执行子流程的“转写 → 内容选择 → 气口语义标注与字幕规划 → 应用剪辑 → 画面策划与包装 → 渲染/QC”。词级转写一到手就生成可复用的气口候选；切媒体前完成逐处时长与理由标注。主流程不能跳过计划直接按静音阈值删除。字幕/字体的局部修改复用已有转写与剪辑计划。
+路由到真人口播后，执行子流程的“转写 → 角色与多次复述核对 → 内容选择 → 气口语义标注与字幕规划 → 应用剪辑 → 画面策划与包装 → 渲染/QC”。选段前按子流程的 [角色与 take 规则](../talking-head-cut/references/recording-roles.md) 区分纯口播、领读漏识别、领读被识别及多遍复述，完成角色表并传给 `select --review`。气口候选在确认保留内容后生成；切媒体前完成逐处时长与理由标注。主流程不能跳过计划直接按静音阈值删除。字幕/字体的局部修改复用已有转写与剪辑计划。
 
 写入任务目录根部的 `production.json`：`route`（transcription/talking-head/hook-video/storyboard/asset/existing-edit；Skill 验证使用 validation）、`route_reason`、`inputs`、`style`、`project_dir`、`output_dir`、`constraints`、`environment.tools_json`。路径必须落在规范分层中；这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
 
@@ -71,8 +67,8 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 3. **路由**：确认附件、目标和输出范围，只选择一个 `route`，完善 `production.json`；不为了寻找“更好的工具”新增路线。
 4. **建立唯一时间轴**：
    - 仅转写：探测媒体 → 转写 → 词级 JSON/可读稿/SRT → 文字质检。
-   - 真人口播：默认读取 [固定口播流水线](references/stable-talking-head.md)，用 `index → select → compile → caption-draft → caption-build → deliver`。Agent编辑选段、气口和字幕数据；程序完成衔接、后台渲染、QC和导出。复杂动效与补充画面按用户目标另走对应参考。
-   - 钩子/分镜/素材：脚本或分镜 → 时间轴计划 → 需要时生成/准备素材 → 渲染 → 文件与画面 QC。
+   - 真人口播：默认读取 [固定口播流水线](references/stable-talking-head.md)，用 `index → select → compile → caption-draft → caption-build → deliver`。Agent编辑选段、气口和字幕数据；程序完成衔接、后台渲染、QC和导出。复杂字幕动效按用户目标另走对应参考。
+   - 钩子/分镜：脚本或分镜 → 时间轴计划 → 准备已有素材 → 渲染 → 文件与画面 QC。
 5. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
 
 主干中的每一步都以文件产物作为下一步输入。时间轴、字幕、渲染和 QC 使用 [正式脚本契约](references/script-contracts.md) 的入口。内容输入错误按批量诊断修正；公共工具缺陷报告失败阶段与可恢复路径，由明确的维护任务处理。制作任务保留同一时间轴和既有检查点。
@@ -91,7 +87,7 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 最终交付前执行：
 
-1. 锁定同一时间轴 revision，渲染 MP4，并将切段、字幕及实际使用的 BGM/配音/补充画面导出到剪映草稿；原渲染工程可额外交付。
+1. 锁定同一时间轴 revision，渲染 MP4，并将切段、字幕及实际使用的 BGM/配音导出到剪映草稿；原渲染工程可额外交付。
 2. 验证 MP4 可解码、规格与时长正确；草稿附完整素材，原片切段可恢复气口，字幕是可改文字，已用 BGM 为独立音轨。无 BGM 的片子无需为了验收添加音乐，在报告记录未使用。
 3. 在 `production.json.outputs` 记录 `mp4`、`jianying` 两个实际路径及共同的 `revision`，在 `qc.json` 分别记录文件检查、剪映打开、编辑保存和视听结果。任一产物缺失时继续处理或明确阻塞，不能宣布完整交付；应用内未验收保留 `review_required`。
 4. 回复同时给出 MP4 和草稿目录的可访问位置、草稿安装方法及已知样式差异。剪映内后续修改需重新导出 MP4，旧成片不会自动更新。
@@ -100,9 +96,6 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 - 环境状态统一由上面的 [scripts/check_env.py](scripts/check_env.py) 提供。需要云 API 时才加 `--network`；需要完整字体哈希时才加 `--deep`。项目模式下使用 `video-production-deps/tools.json` 的路径；FFmpeg 脚本调用必须显式传入项目内路径。
 - 视频/录音需要字幕或文字稿时读取 [asr.md](references/asr.md)。`.env` 已配置时，在用户要求的转写/剪辑范围内用百炼脚本执行；支持 WAV/MP3 上传、词级时码和说话人分离。含画外提示时先确定主角角色与保留词，再剪媒体和重建字幕。ffmpeg 不在 PATH 时按检查脚本解析出的路径传 `--ffmpeg`。
-- 用户明确要求补充画面，或当前 route 明确包含画面策划时，才读 [visual-planning.md](references/visual-planning.md)：按原句判断画面用途，真实证据绑定真实来源；生成图片共享一套视觉风格，并与首张合格基准图逐张对照。未明确要求时默认保留真人/原素材，不自行扩展为生图或生视频任务。
-- 锁定画风时读 [visual-styles.md](references/visual-styles.md)：5 套预设（写实商务纪实／深色科技蓝／金棕奢华商业／明亮产品界面／原生随拍），按本片文案与片子质感选一套，用 `visual_plan.style_preset(id, aspect)` 生成 `visual_style`；一条片子只用一套，画幅跟随成片。**默认不是卡通插画。**
-- 需要 AI 生图/生视频时读取 [generated-media.md](references/generated-media.md)。公共脚本与唯一 `.env` 放在本 Skill；模型使用 `.env` 中的配置或用户明确指定的模型。生成任务失败不盲目重复付费提交。
 - 需要字幕或图形文字时读取 [fonts.md](references/fonts.md)。字体与许可证在 `assets/fonts/`，按视觉定调选择真实文件及字重，随工程带上用到的字体许可。
 - 实际 API 调用、字体渲染、音画同步和语义质量分别记录证据。没有 Key 时先完成本地可验证工作；不能把模拟服务测试写成真实模型通过。
 

@@ -1,15 +1,15 @@
 ---
 name: talking-head-cut
-description: 视频制作中的真人口播子流程，由 video-production 按真人原片路由，也支持直接调用。处理重拍与自然接句、逐句字幕层级，并调用公共百炼素材能力补充画面。
+description: 视频制作中的真人口播子流程，由 video-production 按真人原片路由，也支持直接调用。处理重拍与自然接句、逐句字幕层级。
 ---
 
 # 真人口播剪辑
 
-本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成环境门和类型判断后在当前任务进入这里。直接调用时，若当前任务没有环境报告，先执行主 Skill 的 `scripts/check_env.py --project-dir <workspace-root> --json --write-tools` 一次。主 Skill 统一管理百炼 Key、模型脚本、B-roll 组件及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
+本 Skill 是 [video-production](../video-production/SKILL.md) 的口播子流程；主 Skill 完成环境门和类型判断后在当前任务进入这里。直接调用时，若当前任务没有环境报告，先执行主 Skill 的 `scripts/check_env.py --project-dir <workspace-root> --json --write-tools` 一次。主 Skill 统一管理百炼 Key、转写脚本及字体，口播子流程管理原声、接句、字幕语义和视听验收；不复制第二份配置。
 
-输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查、百炼生成下载脚本和 Remotion 补充画面组件；运行环境继承主 Skill 的唯一环境门。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
+输入最少为一个 raw 路径和一句风格定调。输出带字幕 MP4、剪映可编辑草稿（含完整素材）、SRT 和质检结果。提供短语分页、ASR 异常检查、波形同步检查；运行环境继承主 Skill 的唯一环境门。实际修改依据与验证边界见 [validation.md](references/validation.md)，需要判断能力是否经过实测时读取。
 
-普通剪辑与分页重点字幕默认执行主 Skill 的 [固定口播流水线](../video-production/references/stable-talking-head.md)。程序生成索引、选段计划、字幕草稿和工程，Agent只编辑语义数据；`deliver`管理后台渲染、GPU选择、停止和恢复。本页各阶段描述内容质量要求，固定路线的命令与数据格式以该参考为准。用户明确要求复杂滚动动效、补充画面或额外音轨时才进入相应扩展。
+普通剪辑与分页重点字幕默认执行主 Skill 的 [固定口播流水线](../video-production/references/stable-talking-head.md)。程序生成索引、选段计划、字幕草稿和工程，Agent只编辑语义数据；`deliver`管理后台渲染、GPU选择、停止和恢复。本页各阶段描述内容质量要求，固定路线的命令与数据格式以该参考为准。用户明确要求复杂滚动动效或额外音轨时才进入相应扩展。
 
 ## 1. 接收素材并确定执行路线
 
@@ -17,7 +17,7 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 - 按主 Skill 的 [工作区规范](../video-production/references/workspace-layout.md) 使用 `projects/talking-head/<日期>-<项目名>/`；原片可保留在工作区根目录并保持只读，路径、大小、修改时间、媒体时长、帧率/时间基、旋转、分辨率、音轨及色彩信息写入输入清单。返工复用原项目和 revision，不新建 `-v2` 目录。
 - 只给 raw＋风格时：保留独有论点、例子和顺序，删拍摄废片与确定的重说，保持原声和原速；目标时长随有效内容形成。用户明确要求时才做高光摘选、重排、整体变速或改写式制作。
-- 把风格定调写成 `style.json`：语气、节奏、字幕层级、强调色、标题策略、人物构图、动画强度、音乐、补充画面、输出规格。缺省项按素材作可逆选择并简述，无需逐项询问。用户提供参考成片或字体样例时才读 [styles.md](references/styles.md)。
+- 把风格定调写成 `style.json`：语气、节奏、字幕层级、强调色、标题策略、人物构图、动画强度、音乐、输出规格。缺省项按素材作可逆选择并简述，无需逐项询问。用户提供参考成片或字体样例时才读 [styles.md](references/styles.md)。
 - 主 Skill 的环境门已给出本次可用路线、工具绝对路径和版本；直接消费 `check_env.py --project-dir <workspace-root> --json --write-tools` 的结果，使用工作区共享的 `video-production-deps/tools.json`，不再探测 PATH、递归搜索磁盘或检查其他项目缓存。模型选择只在已有路线未 ready 时处理，并记录实际采用的模型/路径。
 - 开始时记录可用听审通道及接管方式。只选择一个最终时间轴和渲染后端，避免三套工程分别修改字幕。
 - 仅在渲染后端或依赖组合尚未有可复用证据时，先用 20–40 秒包含重说、接句和强调字幕的片段校准一次；已有同版本通过证据时直接进入全片。校准样片不是强制用户审批点。工具不可用时完成不依赖它的素材清单、风格和剪辑设计，明确缺失项；不把缺少依赖的任务说成剪辑完成。
@@ -32,6 +32,7 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 ## 2. 建立可追溯的原声文字稿
 
+- 选段前必须读 [拍摄角色与多次复述](references/recording-roles.md)。覆盖纯口播、ASR漏掉低声领读、ASR识别出领读、主角重复两三遍及混合拍法；先核对角色并将同句各 take 归组，再在主角版本内取舍。`index` 生成的角色表完成后，`select` 必须传入 `--review`；画面人数、speaker数量和相同文字都不能替代身份核验。
 - 默认读取主 Skill [asr.md](../video-production/references/asr.md)，共享 `.env` 已配置时用 `bailian_asr.py` 取得百炼词级时码与说话人标签。已有本次素材的可靠转写可复用；说话人信息不足时补齐所需证据。主角/画外提示的角色依据源片核对，不能固定认定 speaker 0 是主角；混合句的词级修正保留原模型标签与理由。字幕筛选不等于已经删除对应声音，媒体和字幕仍须消费同一保留词计划。
 - 生成轻量预览代理与分析音频时保持原片时间对应，记录任何起始偏移、旋转处理和帧率转换；成片回源原片。VFR 使用实际时间戳，不用帧号÷平均 fps 假装精确时码。
 - 做完整中文转写，取得词级时间戳；区分出镜讲述、场外提示、重拍和无效片段。说话人身份依据声音及上下文，脸部朝向只作辅助。
@@ -59,16 +60,14 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 时间映射、交付结构与质检细则见 [timeline-qc.md](references/timeline-qc.md)，在首次应用剪辑前读取。
 
-- 用一份 `edit-plan.json` 记录 source 区间与 final 区间；`source.fps` 必须记录源视频真实帧率，`fps` 记录成片帧率；已有计划缺少 `source.fps` 时重新探测原片并停在计划阶段，不能复制成片 `fps` 作为替代。按实际应用结果生成新 revision。运行 `scripts/check_timeline.py --plan edit-plan.json` 后才进入渲染。音视频、字幕、标题、动画和补充画面都消费该 revision。
-- 用户明确要求补充画面时，读取 [visual-planning.md](../video-production/references/visual-planning.md)，并从 [visual-styles.md](../video-production/references/visual-styles.md) 选一套风格预设。根据完整保留文稿逐段判断真实证据、解释画面和节奏空镜，记录插入或跳过理由；连续约20–30秒无补充画面时检查候选，普通图片约2–3秒，落在语义位置并保护关键真人表达。整片生成图片锁定同一预设与画幅（竖屏成片出竖幅），首张合格图作为后续审查基准。没有该要求时默认不新增补充画面。
+- 用一份 `edit-plan.json` 记录 source 区间与 final 区间；`source.fps` 必须记录源视频真实帧率，`fps` 记录成片帧率；已有计划缺少 `source.fps` 时重新探测原片并停在计划阶段，不能复制成片 `fps` 作为替代。按实际应用结果生成新 revision。运行 `scripts/check_timeline.py --plan edit-plan.json` 后才进入渲染。音视频、字幕、标题和动画都消费该 revision。
 - 按 [editorial.md](references/editorial.md) 逐句写 takeaway、完整重点短语及理由，再用 `scripts/caption_pages.py` 执行短语分页和词覆盖检查。重点来自本句判断、数字、对比和行动，不能交由全局名词表匹配。普通重点优先白色粗体/字号，主题色优先承担主题和列表结构；渲染器不得覆盖逐句选择。
 - 结合主题、列表、对比与结论设计顶部层及单/双行层级，逐项按原声进入。人物曝光、白平衡、肤色按实际需要温和修正并对照，不把原片直出自动当作视觉完成。
 - 根据实际人物构图设置字幕框及平台安全区域，检查字体真实加载、字符覆盖和可见字高。常驻标题只有风格需要时才添加；标题从素材论点提炼，避免增加原声没有的承诺。
 - 字体选择读取主 Skill 的 [fonts.md](../video-production/references/fonts.md)，按正文、短重点和风格选择内置黑体、宋体、文楷或 Google Fonts 文件并等待实际加载；装饰字体优先短重点，不替换整片长字幕。依照真实字体重新检查大小/宽度，不能依赖操作系统字体名碰运气。
 - 动画使用固定帧时钟，随重音落点出现，在对应字幕区间内收完；口播时长优先于动画时长。
 - 需要两行滚动字幕、调整字幕/重点存在时间或用户提供字体截图时，读 [rolling-subtitles.md](references/rolling-subtitles.md)。紧凑口播采用语义短语行：讲到下一行时，旧行上移、新行在下方出现；重点在对应词开始时出现并随行退出。使用 rolling_captions.py 与 RollingCaptionLayer，不按固定20字拆句；正文和重点可分别指定字体。
-- 用户明确授权生成补充画面时，按静态概念/动态过程选择，读取主 Skill 的 [generated-media.md](../video-production/references/generated-media.md) 后执行生成→下载→内容审查→时间线插入→实际渲染。使用主 Skill 的 `.env` 和用户指定的模型，不能擅自换模型；缺 Key 时完成清单与本地校验，列明真实调用未验。没有明确授权时不调用付费生成接口。
-- 音乐和生成视频声音不能抢占口播，补充视频默认静音；示意素材不当作真实截图或事件证据。保护人物的关键结论、表情和收尾，不用素材填满全片。
+- 音乐不能抢占口播。保护人物的关键结论、表情和收尾。
 - 后续任何剪辑变动均重建映射及字幕，再渲染受影响片段；不在旧 SRT 上凭感觉平移多处时间。
 
 完成条件：工程、字幕、动画均引用同一时间轴版本；实际渲染帧验证单行、双行、长句、数字/英文及强调字。
@@ -77,7 +76,6 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 
 - 执行内容、连续表达、逐切口音画、字幕、构图和文件检查；校准与全片均增加 PCM→最终编码音频波形延迟比对，具体命令见 [editorial.md](references/editorial.md)。修复固定偏移后重测，不能照抄历史 42.7ms。渲染命令成功只证明产生文件。
 - 按剪映导出流程执行 `export_jianying.py`，使用与成片同 revision 的 `edit-plan.json`、字幕及实际使用的附加轨道。交付 `final.mp4`、完整 `剪映工程/`、`final.srt`、原渲染工程及依赖锁文件、`style.json`、`edit-plan.json`、`qc.json`，执行主 Skill 的双产物检查并记录路径。SRT 是文字/时间交换版；剪映基础文字可编辑，未转换的字体和动画差异写入报告。
-- 有补充画面时附 `broll-plan.json`、本地素材和 `media-manifest.json`，保留视觉风格、基准图、原句映射、证据来源及缺口，确认工程实际引用；打包按白名单，排除 `.env`、密钥和带签名 URL 的生成状态文件。逐张对照基准图检查画风，再连播检查语义、阅读时间与返回真人的衔接；实际观看反馈与结构/技术检查分开记录。
 - `qc.json` 每项使用 `pass / fail / not_checked`，记录实际方法、区间和证据。若当前环境不能听审，继续交付可审片版本及待审切口，不以 ASR/静帧冒充自然度通过；存在必检 `fail` 或 `not_checked` 时标为 `review_required`。
 - 成功答复给出 MP4 与剪映草稿目录位置，简述时长、主要取舍和验收边界。制作可发布文件不等于向平台发布；仅在用户明确授权发布时进入平台动作。
 

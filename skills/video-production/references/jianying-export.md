@@ -17,7 +17,7 @@
 | 真人原片 | 每个保留段独立、原速、保留同期声与完整源文件 |
 | 字幕 | 可改文字、分页、起止时间；基础样式可编辑 |
 | BGM、配音、音效 | 独立音轨，可设原素材起点、音量、淡入淡出 |
-| 图片、补充视频 | 独立视频轨，位置和缩放可编辑；补充视频默认静音 |
+| 既有图片、视频素材 | 独立视频轨，位置和缩放可编辑 |
 | 标题、钩子文案 | 独立文本轨，基础字号、颜色、加粗、位置 |
 | Remotion 动效、重点短语样式、自定义字体、调色 | 未自动转换；在报告中说明差异，保留原工程及计划，按需求在剪映重做 |
 
@@ -49,8 +49,6 @@ python -m pip install -r scripts/requirements-jianying.txt
   "clips": [
     {"kind":"audio","track":"BGM","path":"music.wav","source_in_s":0,
      "start_s":0,"end_s":7,"volume":0.15,"fade_in_s":0.3,"fade_out_s":0.5},
-    {"kind":"video","track":"补充画面","path":"image.png",
-     "start_s":2,"end_s":4,"volume":0,"scale":0.5,"x":0,"y":0.25},
     {"kind":"text","track":"顶部标题","text":"一个清晰的判断",
      "start_s":0,"end_s":7,"size":10,"bold":true,"color":[1,1,1],"y":0.75}
   ]

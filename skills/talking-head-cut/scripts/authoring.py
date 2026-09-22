@@ -12,6 +12,7 @@ import subprocess
 from map_words import remap
 from semantic_pacing import prepare
 from caption_pages import compile_pages, key, word_text, write_srt
+from recording_review import draft_review, utterance_groups, validate_review, protect_audio
 
 
 FONT = Path(__file__).resolve().parents[2] / 'video-production/assets/fonts/source-han-sans/SourceHanSansSC-Light.otf'
@@ -36,20 +37,33 @@ def index(transcript, out):
     if not words or len({w['id'] for w in words}) != len(words):
         raise ValueError('Transcript must have nonempty, unique word IDs')
     out.mkdir(parents=True, exist_ok=True)
-    rows = ['index\tid\tstart_s\tend_s\ttext']
-    rows += [f"{i}\t{w['id']}\t{w['source_start_s']}\t{w['source_end_s']}\t{word_text(w).replace(chr(9), ' ').replace(chr(10), ' ')}"
+    clean = lambda text: str(text).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+    rows = ['index\tid\tstart_s\tend_s\ttext\tspeaker_id\teffective_speaker_id\tutterance_id\tchannel_id']
+    rows += [f"{i}\t{w['id']}\t{w['source_start_s']}\t{w['source_end_s']}\t{clean(word_text(w))}"
+             f"\t{w.get('speaker_id', '')}\t{w.get('effective_speaker_id', '')}\t{w.get('utterance_id', '')}\t{w.get('channel_id', 0)}"
              for i, w in enumerate(words, 1)]
     (out / 'words.tsv').write_text('\n'.join(rows) + '\n', encoding='utf-8')
+    utterances = ['first\tlast\tutterance_id\tchannel_id\teffective_speaker_id\tstart_s\tend_s\ttext']
+    for g in utterance_groups(words):
+        ws = g['words']
+        utterances.append('\t'.join(clean(v) for v in [g['first'], g['last'], *g['key'],
+            ws[0]['source_start_s'], ws[-1]['source_end_s'], ''.join(word_text(w) for w in ws)]))
+    (out / 'utterances.tsv').write_text('\n'.join(utterances) + '\n', encoding='utf-8')
+    review_path = out / 'recording-review.json'
+    if not review_path.exists():
+        save(review_path, draft_review(transcript))
     draft = out / 'selection.json'
     if not draft.exists():
         save(draft, {'source_revision': transcript['revision'], 'review': 'not_checked',
                      'ranges': [{'first': 1, 'last': len(words), 'reason': '保留全部；根据词索引选择有效内容'}]})
-    return {'words': len(words), 'index': str(out / 'words.tsv'), 'selection': str(draft)}
+    return {'words': len(words), 'index': str(out / 'words.tsv'), 'selection': str(draft),
+            'utterances': str(out / 'utterances.tsv'), 'recording_review': str(review_path)}
 
 
-def select(transcript, selection, source, ffprobe, out, fps=30, width=None, height=None):
+def select(transcript, selection, source, ffprobe, out, fps=30, width=None, height=None, review=None):
     if selection.get('source_revision') != transcript['revision']:
         raise ValueError('Stale selection source_revision')
+    validate_review(transcript, selection, review)
     words = transcript['words']
     result = subprocess.run([str(ffprobe), '-v', 'error', '-show_streams', '-show_format',
                              '-of', 'json', str(source)], capture_output=True, text=True,
@@ -60,6 +74,8 @@ def select(transcript, selection, source, ffprobe, out, fps=30, width=None, heig
         raise ValueError('Talking-head source needs an audio stream')
     source_rate = Fraction(video['avg_frame_rate'])
     duration = float(meta['format']['duration'])
+    if any(r['end_s'] > duration for r in review.get('excluded_audio', [])):
+        raise ValueError('Excluded audio exceeds source duration')
     vw, vh = video['width'], video['height']
     rotation = next((s.get('rotation', 0) for s in video.get('side_data_list', []) if 'rotation' in s), 0)
     if abs(round(rotation)) % 180 == 90:
@@ -85,6 +101,11 @@ def select(transcript, selection, source, ffprobe, out, fps=30, width=None, heig
         # Preserve up to 40ms handles without accidentally retaining adjacent omitted words.
         start = max(0, start - .04, words[a - 2]['source_end_s'] if a > 1 else 0)
         end = min(duration, end + .04, words[b]['source_start_s'] if b < len(words) else duration)
+        try:
+            start, end = protect_audio(start, end, words[a - 1], words[b - 1], review)
+        except ValueError as exc:
+            errors.append({'range': i, 'error': str(exc)})
+            continue
         sa, sb = round(start * 48000), round(end * 48000)
         if sb <= sa:
             errors.append({'range': i, 'error': 'Empty or overlapping source timing; inspect original audio'})
@@ -102,12 +123,13 @@ def select(transcript, selection, source, ffprobe, out, fps=30, width=None, heig
     source_info = {'path': str(source.resolve()), 'duration_s': duration,
                    'fps': {'num': source_rate.numerator, 'den': source_rate.denominator},
                    'size': stat.st_size, 'modified_ns': stat.st_mtime_ns}
-    revision = 'selection-' + digest([selection, source_info, transcript, fps, width, height])
+    revision = 'selection-' + digest([selection, source_info, transcript, fps, width, height, review])
     frames = math.ceil(cursor / 48000 * fps - 1e-7)
     plan = {'revision': revision, 'source': source_info, 'width': width, 'height': height,
             'fps': {'num': fps, 'den': 1}, 'duration_frames': frames, 'duration_s': frames / fps,
             'sample_rate': 48000, 'audio_samples': cursor, 'audio_duration_s': cursor / 48000,
-            'timing_mode': 'sample_audio_cumulative_video', 'segments': segments}
+            'timing_mode': 'sample_audio_cumulative_video', 'segments': segments,
+            'recording_review': copy.deepcopy(review)}
     mapped = remap(transcript, plan)
     save(out / 'selection-plan.json', plan)
     save(out / 'words.selected.json', mapped)
@@ -250,7 +272,7 @@ def write_ass(captions, plan, target, font):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('action', choices=['index', 'select', 'caption-draft', 'caption-build'])
-    for name in ['transcript', 'selection', 'source', 'ffprobe', 'words', 'plan', 'draft', 'out']:
+    for name in ['transcript', 'selection', 'review', 'source', 'ffprobe', 'words', 'plan', 'draft', 'out']:
         p.add_argument('--' + name, type=Path)
     p.add_argument('--font', type=Path, default=FONT)
     p.add_argument('--fps', type=int, default=30)
@@ -259,7 +281,8 @@ def main(argv=None):
     if a.action == 'index':
         result = index(load(a.transcript), a.out)
     elif a.action == 'select':
-        result = select(load(a.transcript), load(a.selection), a.source, a.ffprobe, a.out, a.fps, a.width, a.height)
+        result = select(load(a.transcript), load(a.selection), a.source, a.ffprobe, a.out, a.fps, a.width, a.height,
+                        load(a.review) if a.review else None)
     elif a.action == 'caption-draft':
         result = caption_draft(load(a.words), load(a.plan), a.out)
     else:

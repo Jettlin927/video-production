@@ -10,6 +10,8 @@ python scripts/video_production.py contract --command caption-build --pretty
 
 普通口播默认按 [固定流水线](stable-talking-head.md) 执行。`index/select`负责索引和选段数据，`caption-draft/caption-build`负责字幕创作，`deliver`串联短样、渲染、QC、剪映导出。它快速返回任务ID，`job-status/job-stop/job-resume`负责状态、进程树停止和检查点恢复。以下旧的原子命令仍保留，供已有工程或明确的局部修正使用。
 
+`index` 同时生成含说话人的词/句索引及 `recording-review.json`。`select` 必须传 `--review`：默认一次确认 speaker_roles，按需追加角色例外、重拍组和 ASR 漏识别音频区间，不要求逐句标注。缺失、过期、入选角色未知、保留领读或已标注组混用 take 时拒绝选段。完整字段及旧项目补表方法见 [拍摄角色与多次复述](../../talking-head-cut/references/recording-roles.md)。
+
 ## 安装阶段：prepare_workspace.py
 
 ```text

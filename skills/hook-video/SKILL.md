@@ -5,9 +5,9 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 
 # 钩子视频（纯排版动画）
 
-本 Skill 是 [video-production](../video-production/SKILL.md) 的钩子视频子流程；主 Skill 判断"没有真人原片、目标是钩子/推广"后在当前任务进入这里，直接调用时同样执行。主 Skill 统一管理百炼 Key、生成脚本、字体与环境检查；本子流程管理钩子脚本、配音、排版动画与验收，不复制第二份配置。
+本 Skill 是 [video-production](../video-production/SKILL.md) 的钩子视频子流程；主 Skill 判断"没有真人原片、目标是钩子/推广"后在当前任务进入这里，直接调用时同样执行。主 Skill 统一管理百炼 Key、转写脚本、字体与环境检查；本子流程管理钩子脚本、配音、排版动画与验收，不复制第二份配置。
 
-输入最少为一个宣传方向（"宣传什么"）加一句受众或 CTA 定调。输出带配音的排版动画 MP4、剪映可编辑草稿（含完整素材）、脚本与排版计划、Remotion 工程和质检结果。整条视频零实拍：画面由文字排版动画与生成配图构成，不包含真人镜头；核心是保留真人原声表达的内容回 [talking-head-cut](../talking-head-cut/SKILL.md)。
+输入最少为一个宣传方向（"宣传什么"）加一句受众或 CTA 定调。输出带配音的排版动画 MP4、剪映可编辑草稿（含完整素材）、脚本与排版计划、Remotion 工程和质检结果。整条视频零实拍：画面由文字排版动画与已有配图构成，不包含真人镜头；核心是保留真人原声表达的内容回 [talking-head-cut](../talking-head-cut/SKILL.md)。
 
 参考形态（来自一条 30 秒样片的逐帧拆解）：白底大字逐层堆叠、打字机逐字出现、关键词圆角 chip 依次点亮、色彩按语义分级、底部双语字幕、结尾 CTA。形态由当次风格定调决定，参考形态用于校准组件，不是默认模板。
 
@@ -37,7 +37,7 @@ description: 视频制作中的钩子视频子流程，由 video-production 按"
 - 读取 [layout-motion.md](references/layout-motion.md)：把脚本逐句落成 `layout-plan.json`——每屏包含哪些层（大标题、陈述行、对比行、chip 组、配图、引用条）、层出现顺序、堆叠或清屏策略、色彩分级、强调词与组件的绑定、每层起止帧、**每屏的视觉事件列表**。
 - **按三区布点**：所有素材层与文字层落在主画面区（分隔线以上）；字幕区只放字幕。证据链素材按用途放右栏、背景或左／右面板，下边缘不得超过 `subtitle_rule_y`，不允许被字幕遮住或被字幕条切掉一条。
 - 字幕分页在计划里定稿：每页 ≤18 字、≤2 行，页时间按字符数比例分配该句配音区间，每页停留 ≥0.8s。
-- 配图需求列入计划：读主 Skill [visual-planning.md](../video-production/references/visual-planning.md) 判断真实证据与示意图，并从 [visual-styles.md](../video-production/references/visual-styles.md) 选一套风格预设（纯排版动画通常落 `tech-blue-01` 或 `clean-ui-01`，一条片子只用一套）；生成调用遵循 [generated-media.md](../video-production/references/generated-media.md)；示意素材不当作真实截图或数据证据。
+- 配图使用已有素材，记录来源并审查；示意素材不当作真实截图或数据证据。
 - 连续多屏无视觉变化时检查是否需要配图或版式变化；纯文字屏也核对阅读时间，并按"节奏与信息密度"补足视觉事件。
 
 完成条件：每句文案在计划中有对应视觉层；每页字幕 ≤18 字且时间对齐；所有素材层在分隔线以上；每屏 ≥3 个视觉事件、无 ≥2s 视觉死区；配图有来源与审查结论；**`check_hook_plan.py` 全部通过**。

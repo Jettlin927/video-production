@@ -367,7 +367,7 @@ def check_env(env_path):
     cfg = bailian_media.config(env_path)
     result['keys'] = sorted(k for k in cfg if k.startswith(('DASHSCOPE', 'BAILIAN')))
     if not cfg.get('DASHSCOPE_API_KEY', '').strip():
-        result['problems'].append('DASHSCOPE_API_KEY 为空：转写与生成素材路线不可用')
+        result['problems'].append('DASHSCOPE_API_KEY 为空：百炼转写路线不可用')
     if not cfg.get('DASHSCOPE_BASE_URL', '').strip():
         result['problems'].append('DASHSCOPE_BASE_URL 为空：无法定位业务空间')
     else:
@@ -549,7 +549,7 @@ def build_report(args):
            ffmpeg_hint)
     record('recommended', 'ffprobe', bool(ffprobe),
            f'{resolved["ffprobe"]["version"]} @ {ffprobe}（{ffprobe_src}）' if ffprobe else '未找到',
-           'prepare_broll.py 需要 ffprobe 探测生成素材；ffmpeg 通常自带')
+           '媒体探测与质检需要 ffprobe；ffmpeg 通常自带')
     record('recommended', 'node', bool(node),
            f'{resolved["node"]["version"]} @ {node}（{node_src}）' if node else '未找到',
            'Remotion 路线需要 Node.js；建议 LTS >= 18')
@@ -586,7 +586,7 @@ def build_report(args):
            (f'已配置 {len(env_info["keys"])} 项：{", ".join(env_info["keys"])}' if key_ok
             else (env_info['problems'][0] if env_info['problems'] else '未配置')),
            '从 .env.example 创建 .env 并填写业务空间 Key；'
-           '缺少 Key 时本地剪辑仍可完成，但转写与生成素材路线不可用')
+           '缺少 Key 时本地剪辑仍可完成，但百炼转写路线不可用')
     report['env'] = env_info
 
     # ---- numpy ----
@@ -620,7 +620,7 @@ def build_report(args):
         report['network'] = check_network(host) if host else {'reachable': None, 'error': '没有可用的 BASE_URL'}
         if host and not report['network']['reachable']:
             report['warnings'].append({'item': 'network', 'detail': f'{host} 不可达',
-                                       'hint': '转写与生成素材需要访问业务空间；本地剪辑不需要'})
+                                       'hint': '百炼转写需要访问业务空间；本地剪辑不需要'})
     else:
         report['network'] = {'checked': False, 'hint': '加 --network 可测试业务空间连通性'}
 
@@ -641,7 +641,6 @@ def build_report(args):
         '波形同步质检': ready('python', 'numpy'),
         '剪片与渲染（Remotion）': ready('ffmpeg', 'node', 'npm', 'browser'),
         '钩子视频（纯排版动画）': HOOK_SIBLING.exists() and ready('node', 'npm', 'browser', 'skill_files'),
-        '生成素材（B-roll）': ready('ffprobe', 'ffmpeg', 'dashscope_key'),
     }
 
     # What the checker can fix by itself. Human-only items (.env key, disk, Python version)

@@ -23,6 +23,8 @@ python scripts/bailian_asr.py --media 'D:/素材/录音.mp3' --out 'D:/项目/as
 
 ## 主角与画外音
 
+口播制作选段前读取 [拍摄角色与多次复述](../../talking-head-cut/references/recording-roles.md)。ASR 没识别出低声领读时，按源音频区间处理；相同文字可能来自领读、主角复述或有意强调，不能按文字重复直接删掉一遍。
+
 默认开启说话人分离，人数自动判断；已知双人可加 `--speaker-count 2`。人数只是算法参考。`--no-diarization` 可关闭，并用于恢复旧版未分离任务；自动复检单人录音时省略人数参数，服务不接受 `--speaker-count 1`。
 
 先看 `speakers.json`、全文和原片，确定哪个编号对应主角。编号只在本次识别内有效，跨窗口/跨任务重新对应。画外提示常与主角跟读交替，模型句界可能把提示尾字归入主角，或把主角尾字归入下一提示句。逐词修正用 `effective_speaker_id` 与修正理由，保留 `speaker_id`、原字和时码；时码修正记录来源，不靠同一句文字推断同一人。

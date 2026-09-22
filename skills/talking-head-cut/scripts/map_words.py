@@ -12,6 +12,11 @@ def remap(transcript, plan):
     if not math.isfinite(fps) or fps <= 0 or not plan.get('revision') or not plan['segments']:
         raise ValueError('Invalid applied timeline')
     ids, words, retained = set(), [], set()
+    # Cut edges live on the audio sample grid, so their seconds value can differ from a
+    # word's declared time by less than one sample. A word that only touches an edge is
+    # not clipped by it; half a sample is the tolerance for both the overlap and the
+    # containment test.
+    eps = 0.5 / plan.get('sample_rate', 48000)
     source_words = transcript['words']
     if len({w['id'] for w in source_words}) != len(source_words):
         raise ValueError('Duplicate source word IDs; merge excerpt namespaces first')
@@ -30,8 +35,8 @@ def remap(transcript, plan):
             point = wa == wb and w.get('timing_status') == 'point_only_review_required'
             if not (0 <= wa < wb <= plan['source']['duration_s'] or point and 0 <= wa <= plan['source']['duration_s']):
                 raise ValueError('Invalid source word time')
-            if wa < b and wb > a or point and a < wa < b:
-                if wa < a-1e-7 or wb > b+1e-7:
+            if wa < b - eps and wb > a + eps or point and a + eps < wa < b - eps:
+                if wa < a - eps or wb > b + eps:
                     raise ValueError('Word crosses cut boundary; review source instead of clipping: ' + w['id'])
                 words.append({**w, 'instance_id': sid, 'final_start_s': fa+wa-a, 'final_end_s': fa+wb-a})
                 retained.add(w['id'])
