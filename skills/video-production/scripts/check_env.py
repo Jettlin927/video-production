@@ -35,8 +35,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SIBLING = ROOT.parent / 'talking-head-cut'
 HOOK_SIBLING = ROOT.parent / 'hook-video'
+SCREENCAST_SIBLING = ROOT.parent / 'ppt-screencast'
 # Optional sibling skills: checked for scripts/links when present, never required.
-EXTRA_SIBLINGS = [p for p in (HOOK_SIBLING,) if p.exists()]
+EXTRA_SIBLINGS = [p for p in (HOOK_SIBLING, SCREENCAST_SIBLING) if p.exists()]
 MIN_PYTHON = (3, 8)
 RECOMMENDED_PYTHON = (3, 10)
 
@@ -471,7 +472,7 @@ def build_report(args):
     count = 2 + len(EXTRA_SIBLINGS)
     record('required', 'skill_layout', SIBLING.exists() and not bad,
            (f'{count} 个 Skill 相邻，脚本全部可编译' if not bad else f'脚本语法错误 {bad}'),
-           'video-production 与 talking-head-cut 必须放在同一级技能目录；hook-video 在场时一并检查')
+           'video-production 与 talking-head-cut 必须放在同一级技能目录；其他子 Skill 在场时一并检查')
     links = skill_links(ROOT / 'SKILL.md') + (skill_links(SIBLING / 'SKILL.md') if SIBLING.exists() else [])
     for extra in EXTRA_SIBLINGS:
         links += skill_links(extra / 'SKILL.md')
@@ -641,6 +642,7 @@ def build_report(args):
         '波形同步质检': ready('python', 'numpy'),
         '剪片与渲染（Remotion）': ready('ffmpeg', 'node', 'npm', 'browser'),
         '钩子视频（纯排版动画）': HOOK_SIBLING.exists() and ready('node', 'npm', 'browser', 'skill_files'),
+        'PPT 运镜讲解（组件环境，非成片验收）': SCREENCAST_SIBLING.exists() and ready('python', 'node', 'npm', 'browser', 'ffmpeg', 'skill_files', 'skill_layout'),
     }
 
     # What the checker can fix by itself. Human-only items (.env key, disk, Python version)

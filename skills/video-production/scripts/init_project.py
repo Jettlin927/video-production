@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 
 
-ROUTES = ('talking-head', 'hook-video', 'transcription', 'storyboard',
+ROUTES = ('talking-head', 'hook-video', 'ppt-screencast', 'transcription', 'storyboard',
           'asset', 'existing-edit', 'validation')
 SUBDIRS = ('input', 'brief', 'work', 'project', 'output', 'qc')
 
@@ -53,6 +53,8 @@ def create_project(workspace_root, route, name, day=None, sources=()):
         'qc_dir': str(task / 'qc'),
         'environment': {'tools_json': str(workspace / 'video-production-deps' / 'tools.json')},
     }
+    if route == 'ppt-screencast':
+        production['export_format'] = 'mp4'
     (task / 'production.json').write_text(
         json.dumps(production, ensure_ascii=False, indent=2), encoding='utf-8')
     return task

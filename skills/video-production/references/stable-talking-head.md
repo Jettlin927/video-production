@@ -8,6 +8,8 @@
 
 主 Skill 已完成环境门、init和转写时复用结果。
 
+有脚本文档、多原片或需要查原句／词范围时，先用 [输入查询](input-inspection.md) 的 `vp inspect`。它保留原索引及分页标记，不另写文档提取、词稿dump或临时区间检查程序；多原片仍须有核验过的单源母版和转写映射。
+
 ```text
 vp index --transcript <transcript.source.json> --out <work/index>
 ```
@@ -25,6 +27,8 @@ vp select --workspace-root <workspace> --source <raw> --transcript <transcript.s
 ## 2. 气口和时间轴
 
 读取子 Skill 的语义气口参考，直接编辑生成的 `pause-decisions.json`：为候选填 `category`、`reason`，必要时填 `target_ms` 或 `preserve: true`。无需写Python、映射词ID或手算帧数。
+
+用 `vp inspect --kind pauses --input <pause-decisions.json>` 分页查看候选并批量编辑JSON。最终接缝查看使用 `--kind joins --input <edit-plan.json> --words <mapped-words.json>`，不拿编译前的instance ID反查最终词表。
 
 ```text
 vp compile --selection <work/edit/selection-plan.json> --transcript <transcript.source.json> --decisions <work/edit/pause-decisions.json> --out-dir <work/compiled>
@@ -76,6 +80,8 @@ vp job-status --job-dir <返回的job_dir>
 vp job-stop --job-dir <返回的job_dir>
 vp job-resume --job-dir <返回的job_dir>
 ```
+
+宿主支持后台工具等待时，启动一次 `vp job-watch --job-dir <job_dir> --job-id <job_id> --timeout 3600`，用宿主的后台结果等待机制接收终态；例如DSH的 `job_output`，而不是模型不断调用 status／写sleep脚本。watch只在工具进程内读状态，不调用模型；超时保留原任务，不自动停止／重启，失败返回非零。收到终态后读取handoff，按未完成项继续；没有等待能力时保持原宿主调度查询方式。
 
 停止会处理整个进程树。resume复用仍有效的阶段文件；阶段失败需按状态中的日志定位，不用旧日志猜任务是否成功。成功后读 `<output>/handoff.json`，取得成片、SRT、工程和QC路径；项目根部存在`production.json`时程序同步登记输出。人工改过的工程不会被自动覆盖；需要新版本时改变内容数据。
 

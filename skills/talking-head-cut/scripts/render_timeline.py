@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import shutil
+import math
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'video-production/scripts'))
 from managed_job import lock, contain_worker, write as write_state
@@ -24,7 +25,15 @@ def choose_encoder(ffmpeg, requested, report_path=None):
     return report['selected_encoder']
 
 
-def graph(plan, width, height, captions=False):
+def input_window(plan):
+    # Whole-second anchor keeps audio sample offsets exact. FFmpeg accurate input seek
+    # discards preroll; both trim grids below remain relative to this same anchor.
+    start = math.floor(min(s['source_in_s'] for s in plan['segments']))
+    end = math.ceil(max(s['source_out_s'] for s in plan['segments'])) + 1
+    return start, end - start
+
+
+def graph(plan, width, height, captions=False, input_start_s=0):
     """Separate audio/sample and video/frame concatenation; pad only the final tail.
 
     Pairwise AV concat waits for the longer stream at every seam. Padding every audio
@@ -38,14 +47,15 @@ def graph(plan, width, height, captions=False):
     rows = [f'[0:v]split={count}' + ''.join(f'[vs{i}]' for i in range(count)),
             f'[0:a]aresample={sr},asplit={count}' + ''.join(f'[as{i}]' for i in range(count))]
     for i, segment in enumerate(segments):
-        a, b = segment['source_in_s'], segment['source_out_s']
+        a, b = segment['source_in_s'] - input_start_s, segment['source_out_s'] - input_start_s
         frames = round(segment['final_out_s'] * fps) - round(segment['final_in_s'] * fps)
         if frames <= 0:
             raise ValueError('Video segment below one frame')
         chain = (f'trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,fps={fps:g},'
                  f'tpad=stop_mode=clone:stop=2,trim=end_frame={frames},setpts=N/({fps:g}*TB)')
         # Source sample bounds are computed once; no per-segment silence or duration change.
-        audio = f'atrim=start_sample={round(a * sr)}:end_sample={round(b * sr)},asetpts=N/SR/TB'
+        audio = (f"atrim=start_sample={round(segment['source_in_s'] * sr) - input_start_s * sr}:"
+                 f"end_sample={round(segment['source_out_s'] * sr) - input_start_s * sr},asetpts=N/SR/TB")
         rows.append(f'[vs{i}]{chain},scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,'
                     f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v{i}]')
         rows.append(f'[as{i}]{audio}[a{i}]')
@@ -92,9 +102,11 @@ def main(argv=None):
                 if not font_dir.is_dir():
                     raise ValueError('Caption fonts directory missing; run caption-build')
                 shutil.copytree(font_dir, work / 'fonts')
-            (work / 'graph.txt').write_text(graph(plan, args.width, args.height, bool(args.captions_ass)), encoding='utf-8')
+            input_start, input_duration = input_window(plan)
+            (work / 'graph.txt').write_text(graph(plan, args.width, args.height, bool(args.captions_ass), input_start), encoding='utf-8')
             encoder = choose_encoder(args.ffmpeg, args.encoder, args.hardware_report)
-            command = [args.ffmpeg, '-v', 'warning', '-nostdin', '-i', args.source,
+            command = [args.ffmpeg, '-v', 'warning', '-nostdin', '-ss', str(input_start),
+                       '-t', str(input_duration), '-i', args.source,
                        '-/filter_complex', 'graph.txt', '-progress', str(args.out.parent / 'render-progress.txt'),
                        '-map', '[vout]', '-map', '[aout]', '-c:v', encoder]
             options = {'libx264': ['-preset', args.preset, '-crf', args.crf],
@@ -129,7 +141,8 @@ def main(argv=None):
             if result.returncode:
                 raise SystemExit(f'ffmpeg failed ({result.returncode}); see {args.out.parent / "render.log"}')
             os.replace(work / 'encoded.mp4', args.out)
-    report = {'status': 'pass', 'encoder': encoder, 'output': str(args.out), 'fallback': fallback}
+    report = {'status': 'pass', 'encoder': encoder, 'output': str(args.out), 'fallback': fallback,
+              'input_window': {'start_s': input_start, 'duration_s': input_duration}}
     write_state(args.out.parent / 'render-result.json', report)
     print(json.dumps(report, ensure_ascii=False))
     return 0

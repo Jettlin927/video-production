@@ -8,5 +8,6 @@ __pycache__/
 .tools/
 .venv/
 node_modules/
+.cache/
 .DS_Store
 Thumbs.db

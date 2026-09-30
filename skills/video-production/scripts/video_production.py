@@ -10,7 +10,7 @@ from hardware import ENCODERS
 HERE = Path(__file__).resolve().parent
 SKILL = HERE.parent
 TALKING = SKILL.parent / 'talking-head-cut' / 'scripts'
-ROUTES = ('talking-head', 'hook-video', 'transcription', 'storyboard',
+ROUTES = ('talking-head', 'hook-video', 'ppt-screencast', 'transcription', 'storyboard',
           'asset', 'existing-edit', 'validation')
 
 
@@ -54,6 +54,35 @@ def build_parser():
     p.add_argument('--date', help='YYYYMMDD; defaults to today.')
     add_path(p, '--source', 'Source media path; repeatable and recorded without copying.',
              required=False, action='append')
+
+    p = command(sub, 'inspect', 'Query scripts, words, utterances, pauses or final joins without helper code.',
+                HERE / 'inspect_inputs.py', ['bounded JSON on stdout; optional --out report'])
+    p.add_argument('--kind', required=True, choices=('script', 'words', 'utterances', 'blocks', 'pauses', 'joins'))
+    add_path(p, '--input', 'Script DOCX/TXT/MD or canonical transcript/decisions/plan JSON.')
+    add_path(p, '--words', 'Same-revision mapped words, required for joins.', required=False)
+    p.add_argument('--range', help='Inclusive original indexes FIRST:LAST.')
+    p.add_argument('--time', help='START:END seconds.')
+    p.add_argument('--text', help='Literal text filter.')
+    p.add_argument('--offset', type=int, default=0)
+    p.add_argument('--limit', type=int, default=40)
+    p.add_argument('--max-text-chars', type=int, default=200)
+    add_path(p, '--out', 'Optional bounded query report.', required=False)
+
+    p = command(sub, 'screencast-check', 'Check page targets, camera and emphasis intervals.',
+                SKILL.parent / 'ppt-screencast' / 'scripts' / 'check_screencast_plan.py', ['<out>/plan-check.json'])
+    add_path(p, '--plan', 'Canonical screencast plan.')
+    add_path(p, '--out', 'Optional geometry check report.', required=False)
+
+    p = command(sub, 'screencast-build', 'Compile authored targets/timing into camera keys; preserve narration timing.',
+                SKILL.parent / 'ppt-screencast/scripts/build_screencast.py', ['screencast-plan.json'])
+    add_path(p, '--author', 'Authored page boxes and timed emphasis cues; camera keys are generated.')
+    add_path(p, '--out', 'Compiled canonical plan.')
+    p = command(sub, 'screencast-deliver', 'Render, mux and QC one frozen screencast plan; MP4 only.',
+                SKILL.parent / 'ppt-screencast/scripts/deliver_screencast.py', ['<out-dir>/handoff.json', '<out-dir>/<signature>/final.mp4'])
+    for flag in ('workspace-root', 'plan', 'audio', 'out-dir'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--font', 'Optional local font file; defaults to bundled Noto Sans SC.', required=False)
+    p.add_argument('--foreground', action='store_true', help='Local verification only; normal work returns a background job.')
 
     p = command(sub, 'transcribe', 'Create or resume a cached word-level Bailian transcript.',
                 HERE / 'bailian_asr.py', ['<out>/transcript.source.json', '<out>/*.srt', '<out>/*-manifest.json'])
@@ -147,6 +176,12 @@ def build_parser():
                     HERE / 'managed_job.py', ['job state JSON'])
         p.set_defaults(_action=name)
         add_path(p, '--job-dir', 'The job_dir returned by deliver.')
+    p = command(sub, 'job-watch', 'Wait in a tool/background job; emit terminal state without model polling.',
+                HERE / 'managed_job.py', ['terminal job state JSON'])
+    p.set_defaults(_action='watch')
+    add_path(p, '--job-dir', 'The job_dir returned by deliver.')
+    p.add_argument('--job-id', required=True, help='Pin the exact job_id returned by deliver.')
+    p.add_argument('--timeout', type=float, default=3600, help='Tool-side timeout in seconds; never cancels the job.')
 
     p = sub.add_parser('contract', help='Print the machine-readable CLI contract derived from argparse.')
     p.add_argument('--pretty', action='store_true', help='Indent JSON output.')
@@ -212,7 +247,7 @@ def forwarded(args):
         if dest == 'workspace_root':
             if command == 'check':
                 flag = '--project-dir'
-            elif command in ('prepare', 'init', 'deliver', 'hardware'):
+            elif command in ('prepare', 'init', 'deliver', 'screencast-deliver', 'hardware'):
                 flag = '--workspace-root'
             else:
                 continue
@@ -258,7 +293,7 @@ def main(argv=None):
         if configured and Path(configured).is_file():
             runtime = configured
     command_line = [runtime, args._script, *forwarded(args)]
-    if args._command == 'deliver' and not args.foreground:
+    if args._command in ('deliver', 'screencast-deliver') and not args.foreground:
         from managed_job import start
         print(json.dumps(start(args.out_dir / '.job', command_line), ensure_ascii=False))
         return 0

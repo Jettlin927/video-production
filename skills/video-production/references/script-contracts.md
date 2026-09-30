@@ -12,6 +12,8 @@ python scripts/video_production.py contract --command caption-build --pretty
 
 `index` 同时生成含说话人的词/句索引及 `recording-review.json`。`select` 必须传 `--review`：默认一次确认 speaker_roles，按需追加角色例外、重拍组和 ASR 漏识别音频区间，不要求逐句标注。缺失、过期、入选角色未知、保留领读或已标注组混用 take 时拒绝选段。完整字段及旧项目补表方法见 [拍摄角色与多次复述](../../talking-head-cut/references/recording-roles.md)。
 
+`inspect` 提供Word／文本脚本、源／成片词表、语句、气口和最终接缝的只读分页查询，格式与调用时机见 [输入查询](input-inspection.md)。`job-watch` 在工具进程内等待指定 job_id 的终态；通过宿主后台工具收结果，不以模型轮询保活。watch 超时不取消原任务，失败与取消返回非零。
+
 ## 安装阶段：prepare_workspace.py
 
 ```text
@@ -33,6 +35,16 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 - 输出：各依赖及路线的 `ok/problems/routes` JSON；非零退出表示环境未就绪。
 - 产物：刷新 `video-production-deps/tools.json`。
 - 边界：任务阶段只检查，不带 `--install`；缺依赖时停止制作并回到安装阶段。
+
+## PPT 运镜计划：check_screencast_plan.py
+
+```text
+python scripts/video_production.py screencast-check --plan <work/screencast-plan.json> --out <qc/plan-check.json>
+```
+
+逐帧检查目标／标注／鼠标可见性、镜头稳定、场景覆盖、引用和字幕安全区。数据格式与组件见 [运镜计划](../../ppt-screencast/references/motion-plan.md)。结果只表示计划几何通过；语义、连续动作、声音和剪映动效仍需独立验证。
+
+`screencast-build` 从页面／目标／讲解帧区间派生镜头和圈画；`screencast-deliver` 冻结数据后预检、渲染、混流并做技术QC，只交付MP4，不导出剪映。两者当前参数由各自contract提供；交付为后台job，状态、停止和恢复复用公共job命令。技术ready不自动代表语义／视觉已审。
 
 ## 通用时间轴：compile_timeline.py
 
@@ -66,6 +78,7 @@ python scripts/video_production.py render --workspace-root <workspace-root> --so
 - 输出：实际采用的 `libx264` 或 `h264_nvenc` 状态 JSON。
 - 产物：`final.mp4`、旁边的 `render.log`。
 - 行为：`auto`核对`video-production-deps/hardware.json`，实测NVENC/QSV/AMF/VideoToolbox并选择可用编码器；设备失败才回退CPU一次并记录。音频与视频分别拼接，保留采样时间轴与累计帧边界；过滤图通过文件传递，避开Windows命令长度上限。
+- 输入先 seek 到最早保留源时刻之前的整秒，并限制到最后保留时刻之后；图内源时码减去同一偏移，最终时间轴不变。短样不再从长原片开头顺序解码；`render-result.json.input_window` 记录实际窗口。
 
 ## 固定技术 QC：qc_delivery.py
 

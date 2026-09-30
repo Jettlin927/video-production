@@ -14,7 +14,8 @@ class UnifiedCliTests(unittest.TestCase):
         self.assertEqual(set(contract['commands']),
                          {'prepare', 'check', 'init', 'transcribe', 'compile', 'captions', 'render', 'qc',
                           'hardware', 'index', 'select', 'pause-prepare', 'caption-draft', 'caption-build',
-                          'export', 'deliver', 'job-status', 'job-stop', 'job-resume'})
+                          'export', 'deliver', 'job-status', 'job-stop', 'job-resume', 'job-watch', 'inspect', 'screencast-check',
+                          'screencast-build', 'screencast-deliver'})
         render = contract['commands']['render']
         encoder = next(a for a in render['arguments'] if a['dest'] == 'encoder')
         self.assertEqual(encoder['choices'], ['auto', 'libx264', 'h264_nvenc', 'h264_qsv', 'h264_amf', 'h264_videotoolbox'])

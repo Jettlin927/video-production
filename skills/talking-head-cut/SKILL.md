@@ -29,6 +29,7 @@ description: 视频制作中的真人口播子流程，由 video-production 按�
 - 环境检查、工具解析和安装只由主 Skill 完成一次；本 Skill 直接使用其结果和项目 `video-production-deps/` 中的 FFmpeg。
 - 先运行脚本的 `--help` 并查看已有 JSON/TSV 产物确认接口。只有帮助和产物不足以定位故障时，才按目标函数或行范围读取源码；源码默认不整篇载入。
 - 转写完成后生成一次可检索的 utterance/word 索引，内容选择、接缝、气口和字幕阶段都复用它；阶段之间传递文件，不反复重读完整转写。
+- 需要查Word脚本、源／成片词范围、候选气口或最终接缝时，使用主 Skill 的 [输入查询](../video-production/references/input-inspection.md)；沿用当前母版／转写，不通过多个 dump、inspect、range-text 脚本重复包装数据。
 
 ## 2. 建立可追溯的原声文字稿
 

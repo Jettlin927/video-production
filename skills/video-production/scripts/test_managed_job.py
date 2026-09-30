@@ -5,8 +5,10 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import contextmanager
+from unittest.mock import patch
 
-from managed_job import start, status, stop, read
+from managed_job import start, status, stop, read, write, watch
 
 
 class ManagedJobTests(unittest.TestCase):
@@ -43,6 +45,47 @@ class ManagedJobTests(unittest.TestCase):
             start(root, [sys.executable, '-c', 'raise SystemExit(7)'])
             self.wait(lambda: status(root)['state'] == 'failed')
             self.assertEqual(status(root)['exit_code'], 7)
+
+    def test_watch_waits_for_same_job_and_reports_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            launched = start(root, [sys.executable, '-c', 'raise SystemExit(7)'])
+            result = watch(root, timeout=5)
+            self.assertEqual(result['job_id'], launched['job_id'])
+            self.assertEqual(result['state'], 'failed')
+            self.assertEqual(result['exit_code'], 7)
+
+    def test_watch_timeout_does_not_stop_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            start(root, [sys.executable, '-c', 'import time; time.sleep(30)'])
+            try:
+                result = watch(root, timeout=0)
+                self.assertEqual(result['state'], 'running')
+                self.assertTrue(result['watch_timed_out'])
+                self.assertEqual(status(root)['state'], 'running')
+            finally:
+                stop(root)
+
+    def test_status_rereads_after_worker_completes_before_lock_acquisition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); run = root / 'run'
+            write(root / 'active.json', {'run_dir': str(run)})
+            write(run / 'state.json', {'job_id': 'r', 'state': 'running'})
+            @contextmanager
+            def finished_before_lock(_):
+                write(run / 'state.json', {'job_id': 'r', 'state': 'completed', 'exit_code': 0})
+                yield
+            with patch('managed_job.lock', finished_before_lock):
+                self.assertEqual(status(root)['state'], 'completed')
+
+    def test_watch_rejects_wrong_job_and_invalid_timeout(self):
+        with patch('managed_job.status', return_value={'job_id': 'actual', 'state': 'completed'}):
+            with self.assertRaisesRegex(ValueError, 'job_id'):
+                watch(Path('.'), job_id='other')
+            for timeout in (float('nan'), float('inf'), -1):
+                with self.assertRaises(ValueError):
+                    watch(Path('.'), timeout=timeout)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows Job Object teardown')
     def test_worker_death_also_kills_child_tree(self):

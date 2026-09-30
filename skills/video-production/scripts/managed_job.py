@@ -10,6 +10,7 @@ import sys
 import time
 import uuid
 import threading
+import math
 
 
 def read(path):
@@ -154,8 +155,12 @@ def status(root):
     if state['state'] == 'running':
         try:
             with lock(root):
-                state.update(state='interrupted', error='Worker is no longer holding the job lock')
-                write(run_dir / 'state.json', state)
+                # The worker can finish between the first read and lock acquisition.
+                # Its terminal state was persisted before it released this lock.
+                state = read(run_dir / 'state.json')
+                if state['state'] == 'running':
+                    state.update(state='interrupted', error='Worker is no longer holding the job lock')
+                    write(run_dir / 'state.json', state)
         except OSError:
             pass
     return state
@@ -175,14 +180,43 @@ def stop(root):
     return {**state, 'state': 'stopping'}
 
 
+def watch(root, timeout=3600, job_id=None):
+    """Wait inside a tool job, without model polling; never cancels on timeout."""
+    if not math.isfinite(timeout) or timeout < 0:
+        raise ValueError('timeout must be finite and nonnegative')
+    deadline = time.monotonic() + timeout
+    initial = status(root)
+    if job_id is not None and initial['job_id'] != job_id:
+        raise ValueError('Active job does not match requested job_id')
+    job_id = initial['job_id']
+    while True:
+        state = status(root)
+        if state['job_id'] != job_id:
+            raise ValueError('Active job changed while watching; inspect the new job explicitly')
+        if state['state'] not in ('starting', 'running'):
+            return state
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return {**state, 'watch_timed_out': True}
+        time.sleep(min(1, remaining))
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=['worker', 'status', 'stop', 'resume'])
+    p.add_argument('action', choices=['worker', 'status', 'stop', 'resume', 'watch'])
     p.add_argument('--job-dir', type=Path, required=True)
     p.add_argument('--run-dir', type=Path)
+    p.add_argument('--timeout', type=float, default=3600)
+    p.add_argument('--job-id')
     a = p.parse_args(argv)
     if a.action == 'worker':
         return worker(a.job_dir, a.run_dir)
+    if a.action == 'watch':
+        if not a.job_id:
+            p.error('watch requires --job-id from the launch result')
+        result = watch(a.job_dir, a.timeout, a.job_id)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result['state'] == 'completed' else 2 if result.get('watch_timed_out') else 1
     if a.action == 'resume':
         run_dir = Path(read(a.job_dir / 'active.json')['run_dir'])
         result = start(a.job_dir, read(run_dir / 'request.json')['command'])

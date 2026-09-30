@@ -29,6 +29,16 @@ class RenderGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'below one frame'):
             graph(plan, 1080, 1920)
 
+    def test_seek_offset_changes_only_source_not_final_time(self):
+        plan = fixture()
+        for segment in plan['segments']:
+            segment['source_in_s'] += 600
+            segment['source_out_s'] += 600
+        text = graph(plan, 1080, 1920, input_start_s=600)
+        self.assertIn('trim=start=0.100000000:end=1.115000000', text)
+        self.assertIn('atrim=start_sample=4800:end_sample=53520', text)
+        self.assertIn('trim=end_frame=30', text)
+
 
 if __name__ == '__main__':
     unittest.main()

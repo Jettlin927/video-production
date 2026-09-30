@@ -9,12 +9,67 @@ import subprocess
 import tempfile
 import unittest
 import wave
+from unittest.mock import patch
 
-from render_timeline import main as render
+from render_timeline import main as render, graph
 
 
 @unittest.skipUnless(os.environ.get('VIDEO_TEST_FFMPEG'), 'Set VIDEO_TEST_FFMPEG/FFPROBE for real media tests')
 class RenderMediaTests(unittest.TestCase):
+    def test_late_seek_matches_unseeked_frame_and_audio_reference(self):
+        import numpy as np
+        ffmpeg, ffprobe = os.environ['VIDEO_TEST_FFMPEG'], os.environ['VIDEO_TEST_FFPROBE']
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); sr = 48000
+            samples = np.random.default_rng(22).integers(-6000, 6000, sr * 6, dtype=np.int16)
+            with wave.open(str(root / 'raw.wav'), 'wb') as stream:
+                stream.setparams((1, 2, sr, len(samples), 'NONE', '')); stream.writeframes(samples.tobytes())
+            source = root / 'raw.mkv'
+            subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=160x96:r=60000/1001:d=6',
+                            '-i', str(root / 'raw.wav'), '-c:v', 'libx264', '-preset', 'ultrafast',
+                            '-c:a', 'pcm_s16le', str(source)], check=True)
+            segments = []; cursor = 0
+            for i, (a, b) in enumerate([(4.213, 4.714), (2.133, 2.834), (5.133, 5.734)]):
+                count = round(b * sr) - round(a * sr)
+                fa, fb = cursor / sr, (cursor + count) / sr
+                segments.append({'id': str(i), 'source_in_s': a, 'source_out_s': b,
+                    'source_in_frame': round(a * 60000 / 1001), 'source_out_frame': round(b * 60000 / 1001),
+                    'final_in_s': fa, 'final_out_s': fb, 'final_in_frame': round(fa * 30),
+                    'final_out_frame': round(fb * 30), 'duration_frames': round(fb * 30) - round(fa * 30)})
+                cursor += count
+            frames = math.ceil(cursor / sr * 30)
+            plan = {'revision': 'late-seek', 'source': {'duration_s': 6, 'fps': {'num': 60000, 'den': 1001}},
+                    'fps': {'num': 30, 'den': 1}, 'duration_frames': frames, 'duration_s': frames / 30,
+                    'sample_rate': sr, 'audio_samples': cursor, 'segments': segments}
+            (root / 'plan.json').write_text(json.dumps(plan))
+            commands = []
+            real_run = subprocess.run
+            def capture(command, **kwargs):
+                commands.append(command)
+                return real_run(command, **kwargs)
+            with patch('render_timeline.subprocess.run', side_effect=capture):
+                render(['--source', str(source), '--plan', str(root / 'plan.json'), '--ffmpeg', ffmpeg,
+                        '--out', str(root / 'seek.mp4'), '--width', '160', '--height', '96',
+                        '--encoder', 'libx264', '--preset', 'ultrafast'])
+            command = commands[-1]
+            self.assertLess(command.index('-ss'), command.index('-i'))
+            self.assertEqual(command[command.index('-ss') + 1], '2')
+            # Old graph, no input seek: same source, plan, codec and settings.
+            (root / 'reference-graph.txt').write_text(graph(plan, 160, 96))
+            real_run([ffmpeg, '-v', 'error', '-i', str(source), '-/filter_complex', str(root / 'reference-graph.txt'),
+                      '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+                      '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', str(root / 'reference.mp4')], check=True)
+            def decode(path, args):
+                return subprocess.check_output([ffmpeg, '-v', 'error', '-i', str(path), *args, '-'])
+            a = decode(root / 'seek.mp4', ['-an', '-f', 'rawvideo', '-pix_fmt', 'rgb24'])
+            b = decode(root / 'reference.mp4', ['-an', '-f', 'rawvideo', '-pix_fmt', 'rgb24'])
+            self.assertEqual(a, b, 'Input seek changed retained video frames')
+            audio_args = ['-vn', '-f', 's16le', '-ac', '1', '-ar', str(sr)]
+            a = np.frombuffer(decode(root / 'seek.mp4', audio_args), dtype='<i2').astype(float)
+            b = np.frombuffer(decode(root / 'reference.mp4', audio_args), dtype='<i2').astype(float)
+            self.assertEqual(len(a), len(b))
+            self.assertGreater(np.corrcoef(a, b)[0, 1], .999)
+
     def test_frames_and_audio_stay_on_canonical_grids(self):
         import numpy as np
         ffmpeg, ffprobe = os.environ['VIDEO_TEST_FFMPEG'], os.environ['VIDEO_TEST_FFPROBE']

@@ -1,0 +1,40 @@
+{
+  "revision": "screencast-fixture-001",
+  "width": 720,
+  "height": 816,
+  "fps": 24,
+  "duration_frames": 288,
+  "viewport": {"x": 32, "y": 24, "w": 656, "h": 680},
+  "pages": [{
+    "id": "overview",
+    "width": 720,
+    "height": 780,
+    "elements": [
+      {"id": "title", "x": 60, "y": 40, "w": 600, "h": 80, "text": "让观众跟着重点看", "font_size": 48, "color": "#202020"},
+      {"id": "relation", "x": 80, "y": 160, "w": 560, "h": 60, "text": "先看结构，再看局部", "font_size": 34, "color": "#bf3545"},
+      {"id": "product", "x": 60, "y": 270, "w": 260, "h": 160, "text": "产品能力", "font_size": 40, "color": "#bf3545", "border": true},
+      {"id": "demand", "x": 400, "y": 270, "w": 260, "h": 160, "text": "实际需求", "font_size": 40, "color": "#297d57", "border": true},
+      {"id": "arrow", "x": 330, "y": 305, "w": 60, "h": 90, "text": "→", "font_size": 48, "color": "#202020"},
+      {"id": "conclusion", "x": 160, "y": 560, "w": 400, "h": 70, "text": "重点必须有落点", "font_size": 40, "color": "#bf3545"}
+    ]
+  }],
+  "scenes": [{
+    "page_id": "overview", "start_frame": 0, "end_frame": 288,
+    "camera": [
+      {"frame": 0, "cx": 360, "cy": 390, "scale": 0.82},
+      {"frame": 35, "cx": 360, "cy": 390, "scale": 0.82},
+      {"frame": 55, "cx": 190, "cy": 350, "scale": 1.5},
+      {"frame": 125, "cx": 190, "cy": 350, "scale": 1.5},
+      {"frame": 145, "cx": 530, "cy": 350, "scale": 1.5},
+      {"frame": 195, "cx": 530, "cy": 350, "scale": 1.5},
+      {"frame": 220, "cx": 360, "cy": 595, "scale": 1.4},
+      {"frame": 265, "cx": 360, "cy": 595, "scale": 1.4},
+      {"frame": 287, "cx": 360, "cy": 390, "scale": 0.82}
+    ],
+    "cues": [
+      {"kind": "circle", "target_id": "product", "reason": "圈住完整的产品能力概念", "start_frame": 60, "end_frame": 120, "approach_frames": 10, "draw_frames": 22, "padding": 10},
+      {"kind": "point", "target_id": "demand", "reason": "转向与之对照的实际需求", "start_frame": 150, "end_frame": 190, "approach_frames": 10, "draw_frames": 8, "padding": 10},
+      {"kind": "underline", "target_id": "conclusion", "reason": "标出本段结论", "start_frame": 225, "end_frame": 264, "approach_frames": 8, "draw_frames": 16, "padding": 10}
+    ]
+  }]
+}

@@ -1,26 +1,44 @@
 # Video Production Skills
 
-一组给 AI Agent 使用的视频制作 Skills：根据素材和目标路由到真人口播剪辑、钩子视频或音视频转字幕流程。
+一组给 AI Agent 使用的视频制作 Skills：根据素材和目标路由到真人口播剪辑、钩子视频、PPT 运镜讲解或音视频转字幕流程。
 
 | Skill | 用途 |
 | --- | --- |
 | `video-production` | 总入口；共享转写脚本、字体和环境检查；空镜制作交给后续剪辑师 |
 | `talking-head-cut` | 真人原片剪辑、重拍取舍、语义气口、字幕层级和视听质检 |
 | `hook-video` | 无真人原片的钩子脚本、配音流程、排版动画与 Remotion 组件 |
+| `ppt-screencast` | PPT／长页信息地图、局部推近平移、鼠标指向圈画；附计划检查和运镜组件 |
 
-三个目录需要一起安装并保持同级，子流程通过相对路径使用主 Skill 的公共能力。
+四个目录需要一起安装并保持同级，子流程通过相对路径使用主 Skill 的公共能力。
+
+本轮开发版暂存在 `wip/video-skills-20260930` 分支，未合并到 `main`。需要本轮修改（包括 `ppt-screencast`）时，先按下面的跨电脑步骤取得该分支，不用默认main安装命令替代。
+
+## 国庆期间换电脑继续工作
+
+```shell
+git clone --branch wip/video-skills-20260930 --single-branch git@github.com:Jettlin927/video-production.git
+cd video-production
+```
+
+将 `skills/` 内四个完整目录复制到新电脑实际使用的技能目录，并保持同级；或在新电脑重新建立指向该仓库的目录链接。不要直接复制旧电脑的junction，它们仍会指向旧电脑的路径。新电脑需有Python、Node.js与所选路线要求的浏览器／工具，按下文在新视频工作区运行 `prepare`，再用自己的配置创建本机 `.env`，执行 `check`。
+
+源码分支不包含本机 `.env`／Key、依赖环境、DeepSeek session、原片、配音与制作项目。要继续旧视频，还需单独携带相应素材／项目／付费转写缓存，保留或重新定位文件引用；这些不随代码推送。
+
+分支上的固定工具已做本地回归与真实媒体验证；新PPT路线的主题→成片DeepSeek one-shot成功率和Token降幅仍待新会话验证，不将暂存分支视为已完成生产验收。
 
 ## 安装
 
 已安装 Node.js 和 Git 的用户，可以使用 [Skills CLI](https://github.com/vercel-labs/skills) 安装到 Codex：
 
+以下默认仓库安装命令适用于这些修改已合并到main之后；当前开发版请使用上面的分支clone和同级目录安装。
+
 ```shell
-npx skills add Jettlin927/video-production --skill video-production talking-head-cut hook-video -g -a codex
+npx skills add Jettlin927/video-production --skill video-production talking-head-cut hook-video ppt-screencast -g -a codex
 ```
 
 Claude Code 用户将 `-a codex` 换成 `-a claude-code`。其他 Agent 请按宿主的技能发现规则安装；能读取文件不代表会自动发现 Skill。
 
-也可以下载本仓库 ZIP，把 `skills/` 内的三个完整目录复制到宿主的技能目录，保留脚本、references、assets 和字体许可。ZIP 安装需要手动更新，不会自动登记到 Skills CLI。
+也可以下载本仓库 ZIP，把 `skills/` 内的四个完整目录复制到宿主的技能目录，保留脚本、references、assets 和字体许可。ZIP 安装需要手动更新，不会自动登记到 Skills CLI。
 
 ## 下载后立即准备依赖（制作任务开始前）
 
@@ -82,11 +100,20 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 用 video-production，把这段录音转成可读文字稿和 SRT，保留说话人区分。
 ```
 
+```text
+用 video-production，按这条参考制作 PPT 录屏式讲解。
+保留全文，用推近、平移和鼠标圈画带着观众看重点，不做逐屏大字钩子。
+```
+
+`ppt-screencast` 的计划检查与组件技术短样不等于整片验收；它默认不生成剪映，内部计划／快照只供自动重试，不作为工程交付。
+
+该路线默认one-shot输出可发布MP4，不交剪映或Remotion工程：Agent按主题／文案完成内容与配音，`screencast-build`派生运镜，`screencast-deliver`冻结快照并完成预检／渲染／混流／QC。旧两条路线的双产物合同不变；内部工程仅作重试缓存。
+
 配音流程需要可用的 TTS 服务或用户录音；本仓库尚未提供统一 TTS 执行脚本。Agent 仍需文件、命令和网络执行能力；Skill 安装成功不等于所有视频路线都已具备运行条件。
 
 ## 完整视频流程：默认交付 MP4＋剪映草稿
 
-用户提供素材和风格或宣传方向后，完整视频流程至少交付两项，无需额外要求导出工程：
+PPT运镜路线默认只交MP4。其他完整视频路线在用户提供素材和风格或宣传方向后，至少交付以下两项，无需额外要求导出工程：
 
 1. `final.mp4`：可播放的成片。
 2. `剪映工程/`：包含完整素材的剪映可编辑草稿，可手动改字幕、拖切口调整气口、调整已用 BGM。
@@ -102,7 +129,7 @@ Agent 在 `production.json` 记录 `export_format: "both"`、两个实际输出�
 使用 Skills CLI 安装的用户，先将自己的 `.env` 备份到技能目录之外，再执行：
 
 ```shell
-npx skills update video-production talking-head-cut hook-video -g
+npx skills update video-production talking-head-cut hook-video ppt-screencast -g
 ```
 
 更新后检查并恢复本机 `.env`，再运行统一 CLI 的 `check`。已有 `video-production-deps/` 不由 Skill 更新覆盖；依赖锁发生变化时重新执行 `prepare`。目录替换可能丢失本机配置或改动，不要把个人配置与待发布文件混用。以上安装/更新语法依据 Skills CLI 文档；各宿主的实际发现与运行情况需在目标环境验证。
@@ -126,6 +153,8 @@ git push origin main
 ```shell
 python -m unittest discover -s skills/video-production/scripts -p "test_*.py"
 python -m unittest discover -s skills/talking-head-cut/scripts -p "test_*.py"
+python -m unittest discover -s skills/ppt-screencast/scripts -p "test_*.py"
+node --test skills/ppt-screencast/scripts/test_motion.mjs
 ```
 
 历史验证说明见 [真人口播验证记录](skills/talking-head-cut/references/validation.md) 和 [钩子视频验证状态](skills/hook-video/SKILL.md#验证状态)。部分记录来自维护者本机，原片和完整证据未公开；不能据此声称新机器、不同模型或任意素材已通过端到端验收。实际服务调用、成片解码、字幕同步和完整听审分别确认。

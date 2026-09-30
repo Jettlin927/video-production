@@ -1,6 +1,6 @@
 ---
 name: video-production
-description: 视频制作与视频/录音转字幕入口。按素材和目标路由到百炼转写、真人口播剪辑、钩子或分镜制作流程，并复用字幕字体资源。
+description: 视频制作与视频/录音转字幕入口。按素材和目标路由到转写、真人口播剪辑、钩子、PPT 运镜讲解或分镜制作流程，并复用字幕字体资源。
 ---
 
 # 视频制作主 Skill
@@ -40,6 +40,7 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 ```text
 用户要制作视频或把音视频转成字幕
 ├─ 只要现有视频或录音的文字稿/SRT？ → references/asr.md 的字幕流程
+├─ 核心是讲解 PPT／长页，用镜头聚焦与鼠标圈画强调（即使有营销钩子或配音）？ → ppt-screencast 子 Skill
 ├─ 有原片，核心是保留真人原声表达？
 │  ├─ 是：真人讲述/知识分享/口播 → talking-head-cut 子 Skill
 │  └─ 否：现有素材混剪/其他剪辑 → route=existing-edit；只复用当前工程已有时间轴，没有工程时先确认剪辑范围
@@ -56,9 +57,11 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 钩子视频读 [hook-video/SKILL.md](../hook-video/SKILL.md)，同为子 Skill，同一执行约定。用户只需提供宣传方向（加可选受众/CTA/时长）；路由到钩子视频后执行子流程的"钩子脚本 → 配音与时间戳 → 排版计划 → Remotion 制作 → 验收交付"。零实拍：画面由排版动画与已有配图构成，不伪造真人镜头或数据截图。
 
+PPT 运镜讲解读 [ppt-screencast/SKILL.md](../ppt-screencast/SKILL.md)，同一执行约定。以“信息地图 → 讲解时间轴 → 目标绑定运镜与鼠标圈画 → 验收交付”为主；视觉形式优先于“营销”或“有录音”这些标签，不压成默认 30 秒钩子，也不把配音当真人原片。只有要求匀速长页滚动或逐屏大字时仍按实际形态选择原流程。
+
 路由到真人口播后，执行子流程的“转写 → 角色与多次复述核对 → 内容选择 → 气口语义标注与字幕规划 → 应用剪辑 → 画面策划与包装 → 渲染/QC”。选段前按子流程的 [角色与 take 规则](../talking-head-cut/references/recording-roles.md) 区分纯口播、领读漏识别、领读被识别及多遍复述，完成角色表并传给 `select --review`。气口候选在确认保留内容后生成；切媒体前完成逐处时长与理由标注。主流程不能跳过计划直接按静音阈值删除。字幕/字体的局部修改复用已有转写与剪辑计划。
 
-写入任务目录根部的 `production.json`：`route`（transcription/talking-head/hook-video/storyboard/asset/existing-edit；Skill 验证使用 validation）、`route_reason`、`inputs`、`style`、`project_dir`、`output_dir`、`constraints`、`environment.tools_json`。路径必须落在规范分层中；这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
+写入任务目录根部的 `production.json`：`route`（transcription/talking-head/hook-video/ppt-screencast/storyboard/asset/existing-edit；Skill 验证使用 validation）、`route_reason`、`inputs`、`style`、`project_dir`、`output_dir`、`constraints`、`environment.tools_json`。路径必须落在规范分层中；这是路由记录，不是给用户多加表单。仅转字幕时交付文字稿、词级 JSON、SRT 和说话人摘要；视频制作返回工程、文件和真实质检。
 
 ## 主干道：默认按这一条走
 
@@ -69,7 +72,8 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
    - 仅转写：探测媒体 → 转写 → 词级 JSON/可读稿/SRT → 文字质检。
    - 真人口播：默认读取 [固定口播流水线](references/stable-talking-head.md)，用 `index → select → compile → caption-draft → caption-build → deliver`。Agent编辑选段、气口和字幕数据；程序完成衔接、后台渲染、QC和导出。复杂字幕动效按用户目标另走对应参考。
    - 钩子/分镜：脚本或分镜 → 时间轴计划 → 准备已有素材 → 渲染 → 文件与画面 QC。
-5. **交付**：所有输出消费同一 revision；完整视频再生成剪映工程；分别报告文件、技术、内容和人工视听状态。
+   - PPT 运镜：信息地图 → 讲解时间轴 → screencast-plan → screencast-check → 运镜／鼠标渲染 → 连续动作与内容 QC。
+5. **交付**：所有输出消费同一 revision；PPT运镜默认只交MP4，其他完整视频按双产物合同生成剪映工程；分别报告文件、技术、内容和实际视听状态。
 
 主干中的每一步都以文件产物作为下一步输入。时间轴、字幕、渲染和 QC 使用 [正式脚本契约](references/script-contracts.md) 的入口。内容输入错误按批量诊断修正；公共工具缺陷报告失败阶段与可恢复路径，由明确的维护任务处理。制作任务保留同一时间轴和既有检查点。
 
@@ -78,14 +82,15 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 - 环境门只跑一次；主 Skill 将同一份结果传给子 Skill。子 Skill 不重复探测 PATH、缓存、浏览器、字体或模型，也不重新寻找 FFmpeg。
 - 先运行统一 CLI 的 `contract --command <当前子命令>` 获取当前接口，再查看对应 `--help` 和 JSON/TSV。只有错误诊断不足以解释阻塞时，才按符号或行范围读取源码。
 - 大型转写只生成一次紧凑索引（如 utterance/word TSV），后续内容选择、气口和字幕都复用索引；不要在每个阶段重新读取完整转写或重新写一套 dump 脚本。
+- Word脚本、词范围、气口和最终接缝用统一 CLI `inspect` 查询；有脚本文档、多原片或需要定位上下文时读 [输入查询](references/input-inspection.md)。返回的分页／截断标记必须处理，完整语义不能从截断摘要推断。
 - 小范围画面验证使用 `scripts/sample_frames.py --ranges START:END,...`；它按每个时间窗口 seek 后再 concat。不要用全片 `select` 只取少数帧，否则仍会顺序解码整个 HEVC 文件。
 - 每个任务只保留一条 canonical 时间轴和一份 revision；脚本输出是下一步的输入，失败时修复该输入或记录阻塞，不通过旁路工程重新建一条时间轴。
 
 ## 完整视频的最低交付
 
-完整视频制作（真人口播、钩子视频、分镜或整片剪辑）统一交付 `final.mp4` 和 `剪映工程/`，在 `production.json` 记录 `export_format: "both"`。进入制作时即读取 [jianying-export.md](references/jianying-export.md)，按环境门结果确认导出支持范围；无需用户另说“也要工程”。仅转写、单条素材生成和明确的局部修改沿用其任务范围。
+PPT运镜讲解是MP4-only例外：`export_format: "mp4"`，由 `screencast-build → screencast-deliver` 完成，默认不生成任何剪映草稿或工程交付；其完成条件见子Skill。其他完整视频制作（真人口播、钩子视频、分镜或整片剪辑）保持 `final.mp4`＋`剪映工程/`，记录 `export_format: "both"`，进入制作时读取 [jianying-export.md](references/jianying-export.md)。仅转写、单素材和局部修改沿用任务范围。
 
-最终交付前执行：
+以下双产物检查用于需要剪映的路线；PPT运镜不执行这些工程检查。最终交付前执行：
 
 1. 锁定同一时间轴 revision，渲染 MP4，并将切段、字幕及实际使用的 BGM/配音导出到剪映草稿；原渲染工程可额外交付。
 2. 验证 MP4 可解码、规格与时长正确；草稿附完整素材，原片切段可恢复气口，字幕是可改文字，已用 BGM 为独立音轨。无 BGM 的片子无需为了验收添加音乐，在报告记录未使用。
@@ -101,8 +106,8 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 ## 扩展边界
 
-共享安装时将本 Skill 与 `talking-head-cut`、`hook-video` 放在同一级技能目录，按宿主的安装规则复制或建立目录链接。其他 harness 需要将共享目录纳入技能发现范围；可读取文件不等于会自动发现 Skill。没有自动发现能力时，显式读取本 Skill 的 `SKILL.md`，继续按相对路径读取子流程。
+共享安装时将本 Skill 与 `talking-head-cut`、`hook-video`、`ppt-screencast` 放在同一级技能目录，按宿主的安装规则复制或建立目录链接。其他 harness 需要将共享目录纳入技能发现范围；可读取文件不等于会自动发现 Skill。没有自动发现能力时，显式读取本 Skill 的 `SKILL.md`，继续按相对路径读取子流程。
 
 迁移到其他 Agent 时各 Skill 目录一并复制，保留相邻路径。用 `.env.example` 创建本机 `.env` 并填写自己的业务空间 Key 和地址；分享包排除真实 `.env` 和工作区 `video-production-deps/` 中的二进制。复制后以 `check_env.py --project-dir <workspace-root> --json --write-tools` 作为唯一验收入口。更新前备份本机 `.env` 到 Skill 目录之外，更新后重新检查环境。宿主仍需有文件/命令/网络执行能力和推理模型；本 Skill 的 FFmpeg/ffprobe 由工作区共享依赖目录提供。
 
-目前专门实现的子 Skill 是真人口播与钩子视频。新增类型只有在有明确独立流程及验证用例时才增加子 Skill 和路由分支；不要生成空目录或声称已经支持电影混剪、数字人等尚未实现的能力。路由参考案例见 [routing-cases.md](references/routing-cases.md)。
+目前的子 Skill 是真人口播、钩子视频与 PPT 运镜讲解；最后一种提供独立流程、计划检查及运镜组件，不代表全片或剪映动效已验收。新增类型只有在有明确独立流程及验证用例时才增加子 Skill 和路由分支；不要生成空目录或声称已经支持电影混剪、数字人等尚未实现的能力。路由参考案例见 [routing-cases.md](references/routing-cases.md)。

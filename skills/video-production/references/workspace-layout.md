@@ -27,6 +27,7 @@
 
 - `talking-head`：真人原声口播剪辑。
 - `hook-video`：纯排版动画钩子视频。
+- `ppt-screencast`：页面信息地图、局部运镜和鼠标圈画讲解。
 - `transcription`：只交付转写、字幕或说话人结果。
 - `storyboard`：非口播的分镜视频。
 - `asset`：单条图片、视频或音频素材生成。
