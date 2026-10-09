@@ -55,3 +55,24 @@ export function cueAt(target, cue, frame) {
       ? {x: start.x + (1 - approach) * 32, y: start.y - (1 - approach) * 24}
       : tip};
 }
+
+// One continuous, screen-sized pointer for the whole scene, including camera moves.
+export const cursorSize = {w: 32, h: 41};
+export function sceneCursorAt(scene, page, frame, viewport) {
+  const home = {x: viewport.x + viewport.w * .17, y: viewport.y + viewport.h * .25};
+  let from = home, fromFrame = scene.start_frame;
+  for (const cue of scene.cues) {
+    const target = page.elements.find((e) => e.id === cue.target_id);
+    const ready = cue.start_frame + cue.approach_frames;
+    if (frame < ready) {
+      const to = screenPoint(cueShape(target, cue).point(0), cameraAt(scene.camera, ready), viewport);
+      const p = smooth((frame - fromFrame) / (ready - fromFrame));
+      return {x: from.x + (to.x - from.x) * p, y: from.y + (to.y - from.y) * p};
+    }
+    if (frame < cue.end_frame) return screenPoint(cueAt(target, cue, frame).tip, cameraAt(scene.camera, frame), viewport);
+    fromFrame = cue.end_frame - 1;
+    from = screenPoint(cueShape(target, cue).point(1), cameraAt(scene.camera, fromFrame), viewport);
+  }
+  const p = smooth((frame - fromFrame) / Math.max(1, scene.end_frame - 1 - fromFrame));
+  return {x: from.x + (home.x - from.x) * p, y: from.y + (home.y - from.y) * p};
+}

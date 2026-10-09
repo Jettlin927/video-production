@@ -110,6 +110,7 @@ def numbers_equal(a, b):
 # Chinese characters equivalent and destroys the match.
 ASR_CONFUSIONS = [
     ("进", "尽"),
+    ("他", "她"),
 ]
 
 

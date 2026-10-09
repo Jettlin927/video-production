@@ -4,9 +4,9 @@
 
 ## 路线 A：TTS 合成
 
-1. 读主 Skill `.env` 是否已配置 TTS（模型名、音色等键）。未配置时列出缺项，让用户补充或改走路线 B/C；不把无声版说成已完成配音。
-2. 首次使用一个 TTS 配置时，先用一句短文本做真实合成并保存音频与请求参数，记录模型、音色、采样率与实测时长；验证通过后再合成全篇。付费调用失败不盲目重复提交。
-3. 全篇按句合成或整篇合成后切句，统一采样率与响度，句间留白按 `style.json` 的节奏定调。
+1. 新配音直接用主 Skill 的 [公共 TTS 执行器](../../video-production/references/tts.md)：`video_production.py tts --workspace-root ... --script <hook-script.json> --out-dir <work/voice>`。默认配置可用时沿用模型和音色；只列出实际缺失项，不每条片重新寻找旧调用代码。
+2. 预检后，在当次配音授权范围内加 `--execute`，按公共 job 等终态。执行器负责原文分段、合成、统一音频格式、拼接和分段缓存；失败保留状态，不盲目重复提交。Agent不另写TTS脚本，不在生产会话修改公共执行器。
+3. 使用产出的 `voiceover.wav` 和 `script-sentences.json` 继续 ASR、气口处理和整句对齐；句间留白及后处理节奏由 `style.json` 决定，不把分段边界当句级时码。
 
 ## 语速与节奏（先量本机，再定档）
 
@@ -34,7 +34,7 @@
 整篇合成的 TTS 会在**每个标点**留下 0.3–0.9s 停顿。一条 50s 的片子实测能有 10s 以上是静音（本机实例：51.36s 音频里 28 段停顿共 11.4s，占 22%），这是"节奏太慢"的头号来源，先处理它再谈排版。
 
 ```powershell
-python scripts/compress_pauses.py --media voiceover.wav --transcript asr/transcript.source.json --out voiceover.tight.wav --out-transcript asr/transcript.tight.json --ffmpeg <ffmpeg.exe>
+python scripts/video_production.py tighten --workspace-root <workspace> --media voiceover.wav --transcript asr/transcript.source.json --out voiceover.tight.wav --out-transcript asr/transcript.tight.json --max-pause-s 0.25 --keep-pause-s 0.08
 ```
 
 做法与要求：
@@ -72,7 +72,7 @@ python scripts/compress_pauses.py --media voiceover.wav --transcript asr/transcr
 统一用：
 
 ```powershell
-python scripts/align_script.py --script hook-script.json --transcript asr/transcript.source.json --out timing.json
+python scripts/video_production.py align --workspace-root <workspace> --script hook-script.json --transcript asr/transcript.source.json --out timing.json
 ```
 
 它做三件事，并且**自带自检**：

@@ -75,14 +75,54 @@ def build_parser():
 
     p = command(sub, 'screencast-build', 'Compile authored targets/timing into camera keys; preserve narration timing.',
                 SKILL.parent / 'ppt-screencast/scripts/build_screencast.py', ['screencast-plan.json'])
-    add_path(p, '--author', 'Authored page boxes and timed emphasis cues; camera keys are generated.')
+    inputs = p.add_mutually_exclusive_group(required=True)
+    inputs.add_argument('--author', type=Path, help='Legacy authored boxes and final-frame cues.')
+    inputs.add_argument('--content', type=Path, help='Page boxes plus scene/cue sentence IDs; no frame arithmetic.')
+    for flag in ('workspace-root', 'script', 'timing', 'audio', 'author-out'):
+        add_path(p, '--' + flag, flag + '; needed for semantic content binding', required=False)
     add_path(p, '--out', 'Compiled canonical plan.')
     p = command(sub, 'screencast-deliver', 'Render, mux and QC one frozen screencast plan; MP4 only.',
                 SKILL.parent / 'ppt-screencast/scripts/deliver_screencast.py', ['<out-dir>/handoff.json', '<out-dir>/<signature>/final.mp4'])
     for flag in ('workspace-root', 'plan', 'audio', 'out-dir'):
         add_path(p, '--' + flag, flag)
     add_path(p, '--font', 'Optional local font file; defaults to bundled Noto Sans SC.', required=False)
+    add_path(p, '--review', 'Passed review JSON tied to the preview signature.', required=True)
     p.add_argument('--foreground', action='store_true', help='Local verification only; normal work returns a background job.')
+
+    p = command(sub, 'screencast-preview', 'Render review stills only; do not start full video rendering.',
+                SKILL.parent / 'ppt-screencast/scripts/deliver_screencast.py', ['<out-dir>/<signature>/preflight.json', '<out-dir>/<signature>/review-draft.json'])
+    for flag in ('workspace-root', 'plan', 'audio', 'out-dir'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--font', 'Optional bundled font override.', required=False)
+    p.add_argument('--frames', help='Optional CSV frames for partial inspection; partial preview cannot authorize delivery.')
+    p.add_argument('--foreground', action='store_true', help='Local verification only.')
+    p.set_defaults(preview_only=True)
+
+    p = command(sub, 'tts', 'Synthesize exact narration with shared Qwen TTS; dry-run unless --execute.',
+                HERE / 'bailian_tts.py', ['<out-dir>/voiceover.wav', '<out-dir>/script-sentences.json', '<out-dir>/tts-manifest.json'])
+    for flag in ('workspace-root', 'script', 'out-dir'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--env', 'Optional Skill .env path.', required=False)
+    p.add_argument('--model', help='Qwen3-TTS-Flash model ID; defaults to config or qwen3-tts-flash.')
+    p.add_argument('--voice', help='Defaults to config or Cherry.')
+    p.add_argument('--language-type', help='Defaults to config or Chinese.')
+    p.add_argument('--gap-s', type=float, default=0, help='Optional silence between TTS chunks; no pause compression.')
+    p.add_argument('--execute', action='store_true', help='Authorize actual provider calls/resume.')
+    p.add_argument('--foreground', action='store_true', help='Local verification only; paid execution normally returns a background job.')
+
+    p = command(sub, 'align', 'Align exact script sentences to measured ASR words; no project helper code.',
+                HERE / 'align_script.py', ['timing.json'])
+    for flag in ('workspace-root', 'script', 'transcript', 'out'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--json-detail', 'Optional alignment findings for bounded review.', required=False)
+    p = command(sub, 'tighten', 'Explicitly tighten pauses and remap word timestamps; PCM WAV fast path.',
+                HERE / 'compress_pauses.py', ['tightened audio', 'mapped transcript', 'pause analysis'])
+    for flag in ('workspace-root', 'media', 'transcript', 'out', 'out-transcript'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--analysis', 'Optional measurement report.', required=False)
+    p.add_argument('--max-pause-s', type=float, required=True, help='Maximum pause threshold; choose for this route.')
+    p.add_argument('--keep-pause-s', type=float, required=True, help='Retained pause duration; no inherited hook default.')
+    p.add_argument('--no-second-pass', action='store_true')
 
     p = command(sub, 'transcribe', 'Create or resume a cached word-level Bailian transcript.',
                 HERE / 'bailian_asr.py', ['<out>/transcript.source.json', '<out>/*.srt', '<out>/*-manifest.json'])
@@ -126,6 +166,15 @@ def build_parser():
     add_path(p, '--media', 'Rendered delivery file.')
     add_path(p, '--plan', 'The exact edit-plan.json used for rendering.')
     add_path(p, '--out', 'QC JSON output path.')
+    add_path(p, '--reference-audio', 'Optional same-revision narration for bounded decoded-audio identity checks.', required=False)
+
+    p = command(sub, 'sample', 'Extract short diagnostic frame ranges without full-source decoding.',
+                HERE / 'sample_frames.py', ['diagnostic video with requested source ranges'])
+    for flag in ('workspace-root', 'input', 'output'):
+        add_path(p, '--' + flag, flag)
+    p.add_argument('--ranges', required=True, help='Inclusive original frame ranges START:END,...')
+    p.add_argument('--fps', help='Optional source FPS as NUM/DEN; otherwise probed.')
+    p.add_argument('--scale', help='Optional output size W:H.')
 
     p = command(sub, 'hardware', 'Inventory GPUs and test actual encoder initialization.',
                 HERE / 'hardware.py', ['video-production-deps/hardware.json'])
@@ -247,7 +296,7 @@ def forwarded(args):
         if dest == 'workspace_root':
             if command == 'check':
                 flag = '--project-dir'
-            elif command in ('prepare', 'init', 'deliver', 'screencast-deliver', 'hardware'):
+            elif command in ('prepare', 'init', 'deliver', 'screencast-deliver', 'screencast-preview', 'hardware'):
                 flag = '--workspace-root'
             else:
                 continue
@@ -262,14 +311,19 @@ def forwarded(args):
             out += [flag, str(value)]
     if command == 'check':
         out += ['--json', '--write-tools']
-    if command == 'transcribe':
+    if command in ('transcribe', 'tts', 'tighten'):
         out += ['--ffmpeg', tools(args.workspace_root)['ffmpeg']]
+    if command == 'screencast-build' and args.workspace_root:
+        out += ['--ffprobe', tools(args.workspace_root)['ffprobe']]
     if command == 'render':
         out += ['--hardware-report', str(args.workspace_root.resolve() / 'video-production-deps/hardware.json'),
                 '--ffmpeg', tools(args.workspace_root)['ffmpeg']]
     if command == 'select':
         out += ['--ffprobe', tools(args.workspace_root)['ffprobe']]
     if command == 'qc':
+        resolved = tools(args.workspace_root)
+        out += ['--ffmpeg', resolved['ffmpeg'], '--ffprobe', resolved['ffprobe']]
+    if command == 'sample':
         resolved = tools(args.workspace_root)
         out += ['--ffmpeg', resolved['ffmpeg'], '--ffprobe', resolved['ffprobe']]
     return out
@@ -293,7 +347,8 @@ def main(argv=None):
         if configured and Path(configured).is_file():
             runtime = configured
     command_line = [runtime, args._script, *forwarded(args)]
-    if args._command in ('deliver', 'screencast-deliver') and not args.foreground:
+    if ((args._command in ('deliver', 'screencast-deliver', 'screencast-preview')
+         or (args._command == 'tts' and args.execute)) and not args.foreground):
         from managed_job import start
         print(json.dumps(start(args.out_dir / '.job', command_line), ensure_ascii=False))
         return 0

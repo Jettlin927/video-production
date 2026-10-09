@@ -35,6 +35,8 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 环境门只解决运行环境；`.env` 的业务空间 Key 和地址仍需人工填写。
 
+需要新旁白时读取 [公共 TTS 执行器](references/tts.md)，使用 `video_production.py tts`；它接收本次文本／句子JSON，自动分句、分段合成、拼接和缓存恢复。默认配置已有可用音色时直接使用，不为每条视频写 TTS 脚本、查旧项目调用代码或重新询问全部参数。
+
 ## 决策树
 
 ```text

@@ -87,9 +87,8 @@ const Deck = () => {
   const page = scene && P.pages.find((p: any) => p.id === scene.page_id);
   const c = P.chrome;
   const caption = (P.captions || []).find((x: any) => frame >= x.start_frame && frame < x.end_frame);
-  return <AbsoluteFill style={{background: P.background || '#efe9dc', fontFamily: 'ScreencastFont'}}>
+  return <AbsoluteFill style={{background: P.background || 'radial-gradient(ellipse at 8% 18%, #c2dcff, transparent 65%), radial-gradient(ellipse at 90% 80%, #f6d5c6, transparent 65%), linear-gradient(145deg, #edf3ff, #e7dcf5)', fontFamily: 'ScreencastFont'}}>
     <CameraStage plan={P} renderPage={(p) => <React.Fragment key={p.id}>
-      <div style={{position: 'absolute', inset: 10, background: '#fff', border: `2px solid ${line}`, borderRadius: 28}}/>
       {p.elements.map((e: any) => <Element key={e.id} e={e}/>)}</React.Fragment>}/>
     {page && c && <>
       <FitBox key={page.id + '-badge'} box={{...c.badge, font_size: 46, color: '#c0392b'}}>{page.badge}</FitBox>

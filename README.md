@@ -7,16 +7,16 @@
 | `video-production` | 总入口；共享转写脚本、字体和环境检查；空镜制作交给后续剪辑师 |
 | `talking-head-cut` | 真人原片剪辑、重拍取舍、语义气口、字幕层级和视听质检 |
 | `hook-video` | 无真人原片的钩子脚本、配音流程、排版动画与 Remotion 组件 |
-| `ppt-screencast` | PPT／长页信息地图、局部推近平移、鼠标指向圈画；附计划检查和运镜组件 |
+| `ppt-screencast` | 根据文案逐项重构 PPT，产品演示式悬浮页面、局部运镜与连续鼠标圈画；直出 MP4 |
 
 四个目录需要一起安装并保持同级，子流程通过相对路径使用主 Skill 的公共能力。
 
-本轮开发版暂存在 `wip/video-skills-20260930` 分支，未合并到 `main`。需要本轮修改（包括 `ppt-screencast`）时，先按下面的跨电脑步骤取得该分支，不用默认main安装命令替代。
+`main` 已包含 PPT 运镜讲解、公共 TTS、句子时码绑定、渲染前审核及配音气口快速路径。四个 Skill 可按下文一起安装。
 
-## 国庆期间换电脑继续工作
+## 换电脑继续工作
 
 ```shell
-git clone --branch wip/video-skills-20260930 --single-branch git@github.com:Jettlin927/video-production.git
+git clone --branch main --single-branch git@github.com:Jettlin927/video-production.git
 cd video-production
 ```
 
@@ -24,13 +24,13 @@ cd video-production
 
 源码分支不包含本机 `.env`／Key、依赖环境、DeepSeek session、原片、配音与制作项目。要继续旧视频，还需单独携带相应素材／项目／付费转写缓存，保留或重新定位文件引用；这些不随代码推送。
 
-分支上的固定工具已做本地回归与真实媒体验证；新PPT路线的主题→成片DeepSeek one-shot成功率和Token降幅仍待新会话验证，不将暂存分支视为已完成生产验收。
+固定工具已做本地回归与真实媒体验证；新PPT路线的主题→成片DeepSeek one-shot成功率和Token降幅仍待新会话验证，不将代码发布视为已完成生产验收。
 
 ## 安装
 
 已安装 Node.js 和 Git 的用户，可以使用 [Skills CLI](https://github.com/vercel-labs/skills) 安装到 Codex：
 
-以下默认仓库安装命令适用于这些修改已合并到main之后；当前开发版请使用上面的分支clone和同级目录安装。
+以下命令从仓库默认分支 `main` 安装当前版本：
 
 ```shell
 npx skills add Jettlin927/video-production --skill video-production talking-head-cut hook-video ppt-screencast -g -a codex
@@ -103,13 +103,14 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 ```text
 用 video-production，按这条参考制作 PPT 录屏式讲解。
 保留全文，用推近、平移和鼠标圈画带着观众看重点，不做逐屏大字钩子。
+把 PPT 当作被介绍的产品，按文案逐项重构页面；使用 OpenScreen 式背景留白、悬浮页面和连续指针。
 ```
 
 `ppt-screencast` 的计划检查与组件技术短样不等于整片验收；它默认不生成剪映，内部计划／快照只供自动重试，不作为工程交付。
 
-该路线默认one-shot输出可发布MP4，不交剪映或Remotion工程：Agent按主题／文案完成内容与配音，`screencast-build`派生运镜，`screencast-deliver`冻结快照并完成预检／渲染／混流／QC。旧两条路线的双产物合同不变；内部工程仅作重试缓存。
+该路线默认one-shot输出可发布MP4，不交剪映或Remotion工程：Agent写内容JSON，公共TTS／align完成声音与时码，`screencast-build --content`绑定强调和字幕，`screencast-preview`生成静帧审核包，审核通过后`screencast-deliver --review`才开始整片渲染／混流／QC。旧两条路线的双产物合同不变；内部工程仅作重试缓存。
 
-配音流程需要可用的 TTS 服务或用户录音；本仓库尚未提供统一 TTS 执行脚本。Agent 仍需文件、命令和网络执行能力；Skill 安装成功不等于所有视频路线都已具备运行条件。
+配音已有统一 `tts` 公共执行器：输入本次文本／句子JSON，自动分段合成、音频拼接及缓存恢复，供钩子和PPT讲解共用。使用方法见 [公共 TTS](skills/video-production/references/tts.md)。默认无付费调用，带 `--execute` 后才执行；仍需要当前服务配置和授权。Agent 仍需文件、命令和网络执行能力；Skill 安装成功不等于所有视频路线都已具备运行条件。
 
 ## 完整视频流程：默认交付 MP4＋剪映草稿
 

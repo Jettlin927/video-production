@@ -64,6 +64,12 @@ class AlignTests(unittest.TestCase):
         res = align_one(norm(script), chars, 0)
         self.assertIsNotNone(res, "进/尽 must be tolerated as a known mishearing")
 
+    def test_ta_pronoun_confusion_keeps_script_and_timing(self):
+        script = '他每个月都得付钱'
+        res = align_one(norm(script), self.chars('她每个月都得付钱'), 0)
+        self.assertIsNotNone(res)
+        self.assertEqual(res[2], len(script))
+
     def test_swallowed_characters(self):
         """已经 heard as 已: the alignment absorbs it without shifting the tail."""
         spoken = "活动方案我已把流程整理好了"

@@ -12,7 +12,7 @@ class UnifiedCliTests(unittest.TestCase):
         parser = cli.build_parser()
         contract = cli.parser_contract(parser)
         self.assertEqual(set(contract['commands']),
-                         {'prepare', 'check', 'init', 'transcribe', 'compile', 'captions', 'render', 'qc',
+                         {'prepare', 'check', 'init', 'tts', 'align', 'tighten', 'sample', 'screencast-preview', 'transcribe', 'compile', 'captions', 'render', 'qc',
                           'hardware', 'index', 'select', 'pause-prepare', 'caption-draft', 'caption-build',
                           'export', 'deliver', 'job-status', 'job-stop', 'job-resume', 'job-watch', 'inspect', 'screencast-check',
                           'screencast-build', 'screencast-deliver'})
@@ -54,6 +54,37 @@ class UnifiedCliTests(unittest.TestCase):
                                '--name', 'contract-smoke'])
         self.assertEqual(result, 0)
         self.assertIsInstance(run.call_args.args[0], list)
+
+    def test_tts_resolves_shared_media_tool_and_backgrounds_only_execution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'video-production-deps').mkdir()
+            (root / 'video-production-deps/tools.json').write_text(json.dumps({'ffmpeg': 'shared-ffmpeg'}), encoding='utf-8')
+            argv = ['tts', '--workspace-root', str(root), '--script', 'copy.txt', '--out-dir', str(root / 'voice')]
+            self.assertEqual(cli.forwarded(cli.build_parser().parse_args(argv))[-2:], ['--ffmpeg', 'shared-ffmpeg'])
+            with patch('video_production.subprocess.run') as run, patch('managed_job.start') as start:
+                run.return_value.returncode = 0
+                start.return_value = {'job_id': 'offline-job'}
+                cli.main(argv)
+                start.assert_not_called()
+                cli.main(argv + ['--execute'])
+                start.assert_called_once()
+                self.assertEqual(start.call_args.args[0], root / 'voice/.job')
+
+    def test_semantic_build_and_preview_forward_their_public_contracts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); (root / 'video-production-deps').mkdir()
+            (root / 'video-production-deps/tools.json').write_text(json.dumps({'ffprobe': 'shared-probe'}), encoding='utf-8')
+            args = cli.build_parser().parse_args(['screencast-build', '--workspace-root', str(root),
+                '--content', 'content.json', '--script', 'script.json', '--timing', 'timing.json', '--audio', 'voice.wav', '--out', 'plan.json'])
+            self.assertEqual(cli.forwarded(args)[-2:], ['--ffprobe', 'shared-probe'])
+            argv = ['screencast-preview', '--workspace-root', str(root), '--plan', 'plan.json', '--audio', 'voice.wav', '--out-dir', str(root/'output')]
+            with patch('managed_job.start', return_value={'job_id': 'preview'}) as start:
+                cli.main(argv)
+            command = start.call_args.args[1]
+            self.assertIn('--preview-only', command)
+            self.assertIn('--workspace-root', command)
+            self.assertNotIn('--review', command)
 
 
 if __name__ == '__main__':

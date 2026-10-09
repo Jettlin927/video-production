@@ -69,6 +69,58 @@ def cursor_at(target, cue, frame):
     return x, y
 
 
+def scene_cursor_at(scene, elements, frame, view):
+    home = (view['w'] * .17, view['h'] * .25)
+
+    def screen(target, cue, at):
+        px, py = cursor_at(target, cue, at)
+        camera = camera_at(scene['camera'], at)
+        return (view['w'] / 2 + (px - camera['cx']) * camera['scale'],
+                view['h'] / 2 + (py - camera['cy']) * camera['scale'])
+
+    origin, origin_frame = home, scene['start_frame']
+    for cue in scene['cues']:
+        target = elements[cue['target_id']]
+        ready = cue['start_frame'] + cue['approach_frames']
+        if frame < ready:
+            destination, destination_frame = screen(target, cue, ready), ready
+            break
+        if frame < cue['end_frame']:
+            return screen(target, cue, frame)
+        origin_frame = cue['end_frame'] - 1
+        origin = screen(target, cue, origin_frame)
+    else:
+        destination, destination_frame = home, scene['end_frame'] - 1
+    t = max(0, min(1, (frame - origin_frame) / max(1, destination_frame - origin_frame)))
+    t = t * t * (3 - 2 * t)
+    return tuple(a + (b - a) * t for a, b in zip(origin, destination))
+
+
+def validate_content_sources(plan):
+    sentences = plan.get('script', {}).get('sentences')
+    require(isinstance(sentences, list) and sentences, 'script.sentences: narration source is required')
+    sources = set()
+    for sentence in sentences:
+        source_id = sentence.get('id')
+        require(isinstance(source_id, str) and source_id.strip() and source_id not in sources,
+                'script.sentences: duplicate or empty sentence ID')
+        require(isinstance(sentence.get('text_zh'), str) and sentence['text_zh'].strip(), 'source sentence needs text_zh')
+        sources.add(source_id)
+    for page in plan['pages']:
+        for element in page['elements']:
+            if element.get('kind') == 'rule':
+                continue
+            refs = element.get('source_ids')
+            require(isinstance(refs, list) and refs and all(isinstance(ref, str) and ref in sources for ref in refs),
+                    f"{element['id']}: source_ids must reference narration sentences")
+            require(isinstance(element.get('takeaway'), str) and element['takeaway'].strip(),
+                    f"{element['id']}: takeaway must explain the visual message")
+    for scene in plan['scenes']:
+        for cue in scene['cues']:
+            if 'narration_id' in cue:
+                require(cue['narration_id'] in sources, 'cue: unknown narration_id')
+
+
 def validate(plan):
     require(bool(plan['revision']), 'revision is required')
     for key in ('width', 'height', 'fps', 'duration_frames'):
@@ -95,6 +147,16 @@ def validate(plan):
             elements[item['id']] = item
         pages[page['id']] = elements
     require(pages and plan['scenes'], 'pages and scenes must not be empty')
+    if 'script' in plan:
+        validate_content_sources(plan)
+    if 'narration_windows' in plan:
+        sentence_ids = [sentence['id'] for sentence in plan['script']['sentences']]
+        require(set(plan['narration_windows']) == set(sentence_ids), 'narration windows must cover the source sentences')
+        previous_end = 0
+        for sid in sentence_ids:
+            a, b = interval(plan['narration_windows'][sid], 0, plan['duration_frames'], 'narration window')
+            require(a >= previous_end, 'narration windows overlap or are unordered')
+            previous_end = b
     next_start = 0
     cue_count = 0
     warnings = []
@@ -129,21 +191,30 @@ def validate(plan):
             padding = number(cue['padding'], 'padding')
             require(padding >= 0, 'padding must not be negative')
             target = pages[scene['page_id']][cue['target_id']]
+            if 'narration_windows' in plan:
+                ids = cue.get('narration_ids', [cue.get('narration_id')])
+                require(ids and all(sid in plan['narration_windows'] for sid in ids), 'cue lacks measured narration windows')
+                require(cue.get('narration_id') == ids[0], 'cue narration_id must identify the first measured sentence')
+                indexes = [sentence_ids.index(sid) for sid in ids]
+                require(indexes == list(range(indexes[0], indexes[-1] + 1)), 'cue narration IDs must be contiguous')
+                windows = [plan['narration_windows'][sid] for sid in ids]
+                require(a >= min(w['start_frame'] for w in windows) and b <= max(w['end_frame'] for w in windows),
+                        f"{name}: {cue['target_id']} emphasis outside its own narration")
+                require(set(ids) <= set(target.get('source_ids', [])), 'cue points at content from another narration sentence')
             pose = camera_at(keys, a)
             for frame in range(a, b):
                 camera = camera_at(keys, frame)
                 require(visible(target, camera, view, padding),
                         f"{name}: {cue['target_id']} or annotation outside viewport at frame {frame}")
-                px, py = cursor_at(target, cue, frame)
-                sx = view['w'] / 2 + (px - camera['cx']) * camera['scale']
-                sy = view['h'] / 2 + (py - camera['cy']) * camera['scale']
-                require(0 <= sx and 0 <= sy and sx + 25 <= view['w'] and sy + 32 <= view['h'],
-                        f'{name}: cursor outside viewport at frame {frame}')
                 require(all(abs(camera[k] - pose[k]) < 0.001 for k in ('cx', 'cy', 'scale')),
                         f'{name}: camera must settle before cue at frame {frame}')
             if target.get('font_size', 999) * pose['scale'] < plan['width'] * 0.025:
                 warnings.append(f"{cue['target_id']}: check text readability in rendered frame")
             cue_count += 1
+        for frame in range(start, end):
+            sx, sy = scene_cursor_at(scene, pages[scene['page_id']], frame, view)
+            require(0 <= sx and 0 <= sy and sx + 32 <= view['w'] and sy + 41 <= view['h'],
+                    f'{name}: cursor outside viewport at frame {frame}')
     require(next_start == plan['duration_frames'], 'scenes do not cover final frames')
     require(cue_count > 0, 'screencast needs at least one target-bound emphasis cue')
     previous_end = 0
@@ -160,6 +231,7 @@ def validate(plan):
         require(not overlap, 'caption overlaps content viewport')
     return {'status': 'pass', 'revision': plan['revision'], 'scenes': len(plan['scenes']),
             'cues': cue_count, 'warnings': warnings,
+            'content_source_links': 'pass' if 'script' in plan else 'not_checked',
             'semantic_review': 'not_checked', 'audiovisual_review': 'not_checked'}
 
 

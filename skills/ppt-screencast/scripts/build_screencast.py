@@ -4,12 +4,14 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
-from check_screencast_plan import validate, require, number
+from check_screencast_plan import validate, validate_content_sources, require, number
 
 
 def compile_plan(author):
     plan = copy.deepcopy(author)
+    validate_content_sources(plan)
     view = plan['viewport']
     fps = number(plan['fps'], 'fps', positive=True, integer=True)
     transition = max(3, round(fps / 3))
@@ -56,12 +58,32 @@ def compile_plan(author):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--author', type=Path, required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument('--author', type=Path)
+    inputs.add_argument('--content', type=Path)
+    for flag in ('script', 'timing', 'audio', 'author-out'):
+        parser.add_argument('--' + flag, type=Path)
+    parser.add_argument('--ffprobe')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        require(args.author.resolve() != args.out.resolve(), 'Output must not overwrite authorship')
-        plan = compile_plan(json.loads(args.author.read_text('utf-8-sig')))
+        source = args.author or args.content
+        require(source.resolve() != args.out.resolve(), 'Output must not overwrite authorship')
+        if args.content:
+            from author_screencast import bind_content
+            require(all((args.script, args.timing, args.audio, args.ffprobe)), '--content needs --script, --timing, --audio and prepared ffprobe')
+            duration = float(subprocess.check_output([args.ffprobe, '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', str(args.audio)], text=True, encoding='utf-8'))
+            author = bind_content(json.loads(args.content.read_text('utf-8-sig')), json.loads(args.script.read_text('utf-8-sig')),
+                                  json.loads(args.timing.read_text('utf-8-sig')), duration)
+            author['narration_audio_sha256'] = hashlib.sha256(args.audio.read_bytes()).hexdigest()
+            if args.author_out:
+                require(args.author_out.resolve() not in {source.resolve(), args.script.resolve(), args.timing.resolve(), args.out.resolve()}, 'author-out must not overwrite inputs or plan')
+                args.author_out.parent.mkdir(parents=True, exist_ok=True)
+                args.author_out.write_text(json.dumps(author, ensure_ascii=False, indent=2), encoding='utf-8')
+        else:
+            author = json.loads(args.author.read_text('utf-8-sig'))
+        plan = compile_plan(author)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding='utf-8')
         print(json.dumps({'status': 'pass', 'revision': plan['revision'], 'scenes': len(plan['scenes']), 'out': str(args.out)}, ensure_ascii=False))

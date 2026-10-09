@@ -62,6 +62,7 @@ class ScreencastPlanTests(unittest.TestCase):
 
     def test_cursor_icon_cannot_escape_even_when_target_fits(self):
         self.plan['viewport']['w'] = 430
+        self.plan['scenes'][0]['cues'] = self.plan['scenes'][0]['cues'][:1]
         with self.assertRaisesRegex(ValueError, 'cursor outside viewport'):
             validate(self.plan)
 

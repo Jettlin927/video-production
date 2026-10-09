@@ -18,6 +18,7 @@ def main(argv=None):
     parser.add_argument('--ffmpeg', type=Path, required=True)
     parser.add_argument('--ffprobe', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--reference-audio', type=Path)
     args = parser.parse_args(argv)
     args.media = args.media.resolve(); args.plan = args.plan.resolve(); args.out = args.out.resolve()
     args.ffmpeg = args.ffmpeg.resolve(); args.ffprobe = args.ffprobe.resolve()
@@ -56,6 +57,11 @@ def main(argv=None):
     delta = abs(duration - expected)
     findings.append({'check': 'duration', 'status': 'pass' if delta <= .05 else 'fail',
                      'actual_s': duration, 'expected_s': expected, 'delta_s': delta})
+    if args.reference_audio:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'video-production/scripts'))
+        from audio_identity import verify_audio
+        findings.append(verify_audio(args.ffmpeg, args.media, args.reference_audio, duration))
     report = {'status': 'pass' if all(x['status'] == 'pass' for x in findings) else 'fail',
               'media': str(args.media.resolve()), 'findings': findings, 'metadata': metadata,
               'content_review': 'not_checked', 'natural_listening': 'not_checked'}

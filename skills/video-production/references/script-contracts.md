@@ -36,6 +36,12 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 - 产物：刷新 `video-production-deps/tools.json`。
 - 边界：任务阶段只检查，不带 `--install`；缺依赖时停止制作并回到安装阶段。
 
+## 公共配音：bailian_tts.py
+
+`tts` 从本次文本或句子JSON生成配音，不需要项目自写脚本；参数、配置和缓存恢复见 [公共 TTS](tts.md)。不带 `--execute` 为无网络／无写入预检；授权执行后返回后台job，复用 `job-watch` 等终态。产物为 `voiceover.wav`、可直接交给整句对齐的 `script-sentences.json` 及 `tts-manifest.json`。
+
+执行器负责长文分段、音频格式统一、样本拼接和请求状态恢复，不包含 ASR、气口压缩或视频渲染。读取清单再进入这些后续步骤；遇到公共工具缺陷走维护任务，不在视频生产会话改代码。
+
 ## PPT 运镜计划：check_screencast_plan.py
 
 ```text
@@ -44,7 +50,13 @@ python scripts/video_production.py screencast-check --plan <work/screencast-plan
 
 逐帧检查目标／标注／鼠标可见性、镜头稳定、场景覆盖、引用和字幕安全区。数据格式与组件见 [运镜计划](../../ppt-screencast/references/motion-plan.md)。结果只表示计划几何通过；语义、连续动作、声音和剪映动效仍需独立验证。
 
-`screencast-build` 从页面／目标／讲解帧区间派生镜头和圈画；`screencast-deliver` 冻结数据后预检、渲染、混流并做技术QC，只交付MP4，不导出剪映。两者当前参数由各自contract提供；交付为后台job，状态、停止和恢复复用公共job命令。技术ready不自动代表语义／视觉已审。
+`screencast-build --content` 消费页面与句子ID、实测timing和配音，公共绑定器负责场景／强调时码与字幕分页；旧帧级author接口保留。`screencast-preview` 只渲染审核静帧和数据包；`screencast-deliver --review` 在当前快照完整预检及逐页审核通过后才渲染、混流和技术QC。未审、过期或未解决内容问题不能开始长渲染。三者参数由contract提供，预检／交付为后台job；技术ready仍不自动代表完整听审。
+
+## 配音后处理与抽查
+
+`align` 接收原句JSON和词级转写，输出实测句子timing；已知他/她同音转写差异有回归，不要求每个项目写debug_align。`tighten` 必须明确提供max-pause-s/keep-pause-s，PCM16 WAV走线性样本快速路径，其他媒体保留文件式FFmpeg过滤图兼容；处理后重新消费映射词表。PPT不默认套用钩子气口策略。
+
+`sample` 复用源帧范围输入seek的公共短窗抽样器，不从长视频开头解码全部帧，不新写select/filter脚本。`qc --reference-audio` 可追加五个一秒解码窗口的旁白一致性核对；PPT交付器自动传入同一快照配音，不再写check_audio_identity。
 
 ## 通用时间轴：compile_timeline.py
 

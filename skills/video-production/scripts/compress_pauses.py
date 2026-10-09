@@ -16,6 +16,9 @@ Usage:
       --ffmpeg "C:/path/ffmpeg.exe"
 """
 import argparse
+from array import array
+import math
+import wave
 import json
 import math
 import os
@@ -240,8 +243,54 @@ def reconcile(time_map, predicted, actual):
     return time_map, abs(actual - predicted)
 
 
+def pcm_cut_and_join(media, parts, out_path):
+    """PCM16 narration needs one linear sample pass, not hundreds of decoder branches."""
+    if not media.lower().endswith('.wav') or not out_path.lower().endswith('.wav'):
+        return False
+    try:
+        source = wave.open(media, 'rb')
+    except (wave.Error, EOFError):
+        return False
+    with source:
+        if source.getsampwidth() != 2 or source.getcomptype() != 'NONE':
+            return False
+        channels, rate, frames = source.getnchannels(), source.getframerate(), source.getnframes()
+        samples = array('h'); samples.frombytes(source.readframes(frames))
+        if sys.byteorder != 'little':
+            samples.byteswap()
+    joined = array('h')
+    for part in parts:
+        start = max(0, math.ceil(part['src_start'] * rate - 1e-8))
+        end = min(frames, math.ceil(part['src_end'] * rate - 1e-8))
+        chunk = samples[start * channels:end * channels]
+        if not chunk:
+            continue
+        fade = min(round(CROSSFADE_S * rate), len(joined) // channels, len(chunk) // channels)
+        offset = len(joined) - fade * channels
+        for i in range(fade):
+            incoming = i / fade
+            for channel in range(channels):
+                at = i * channels + channel
+                joined[offset + at] = max(-32768, min(32767, int(joined[offset + at] * (1 - incoming) + chunk[at] * incoming)))
+        joined.extend(chunk[fade * channels:])
+    if not joined:
+        raise ValueError('Pause selection produced no PCM audio')
+    if sys.byteorder != 'little':
+        joined.byteswap()
+    temporary = out_path + '.tmp.wav'
+    with wave.open(temporary, 'wb') as output:
+        output.setparams((channels, 2, rate, 0, 'NONE', 'not compressed'))
+        output.writeframes(joined.tobytes())
+    os.replace(temporary, out_path)
+    return True
+
+
 def cut_and_join(ffmpeg, media, parts, out_path):
-    """Single ffmpeg pass: trim each part and concat with short crossfades."""
+    """Fast PCM path; preserve file-backed FFmpeg compatibility for other media."""
+    if os.path.abspath(media) == os.path.abspath(out_path):
+        raise ValueError('Pause output must not overwrite source media')
+    if pcm_cut_and_join(media, parts, out_path):
+        return 'pcm-wave'
     atrim = []
     labels = []
     for idx, p in enumerate(parts):
@@ -260,11 +309,19 @@ def cut_and_join(ffmpeg, media, parts, out_path):
             filter_parts.append(f"{chain}{labels[idx]}acrossfade=d={CROSSFADE_S}:c1=tri:c2=tri{last}")
             chain = last
     graph = ";".join(filter_parts)
-    cmd = [ffmpeg, "-hide_banner", "-v", "error", "-y", "-i", media,
-           "-filter_complex", graph, "-map", "[out]", out_path]
-    res = run(cmd)
-    if res.returncode != 0:
-        raise SystemExit("ffmpeg cut/join failed:\n" + res.stderr[-3000:])
+    script_path = out_path + ".filter.txt"
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(graph)
+    tail = ["-map", "[out]", out_path]
+    res = None
+    for flag in ("-/filter_complex", "-filter_complex_script"):
+        cmd = [ffmpeg, "-hide_banner", "-v", "error", "-y", "-i", media, flag, script_path, *tail]
+        res = run(cmd)
+        if res.returncode == 0:
+            return 'ffmpeg-filter'
+        if "Unrecognized option" not in res.stderr and "Option not found" not in res.stderr:
+            break
+    raise SystemExit("ffmpeg cut/join failed:\n" + res.stderr[-3000:])
 
 
 def main():
@@ -290,7 +347,7 @@ def main():
     silence_total = sum(e - s for s, e in silences)
 
     parts, time_map, total_out = build_map(duration, silences, args.max_pause_s, args.keep_pause_s)
-    cut_and_join(ffmpeg, args.media, parts, args.out)
+    backend = cut_and_join(ffmpeg, args.media, parts, args.out)
 
     # Measure the produced audio, then put the time map on that exact length so the
     # word timestamps cannot drift from the audio they describe.
@@ -357,6 +414,7 @@ def main():
         "noise_db": args.noise_db,
         "min_silence_s": args.min_silence_s,
         "passes": passes,
+        "backend": backend,
         "map_residual_s": round(drift, 4),
         "note": "audio and word timestamps share this mapping chain",
     }

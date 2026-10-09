@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {cameraAt, cueAt, screenPoint} from '../assets/remotion/motion.mjs';
+import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {cameraAt, cueAt, sceneCursorAt, screenPoint} from '../assets/remotion/motion.mjs';
 
 const target = {x: 100, y: 120, w: 200, h: 80};
 const cue = {kind: 'circle', padding: 10, start_frame: 20, end_frame: 80,
@@ -49,4 +51,33 @@ test('pointer arrives before drawing and then stays at the target', () => {
   assert.notDeepEqual(arriving.tip, ready.tip);
   assert.deepEqual(ready.tip, {x: 310, y: 210});
   assert.deepEqual(hold.tip, ready.tip);
+});
+
+const plan = JSON.parse(fs.readFileSync(new URL('../assets/demo-plan.json', import.meta.url), 'utf8'));
+test('scene pointer stays present, travels continuously and follows the pen during drawing', () => {
+  const scene = plan.scenes[0], page = plan.pages[0], view = plan.viewport;
+  const home = sceneCursorAt(scene, page, scene.start_frame, view);
+  const end = sceneCursorAt(scene, page, scene.end_frame - 1, view);
+  assert.ok(Math.hypot(end.x - home.x, end.y - home.y) < 1e-8);
+  let previous = home;
+  for (let frame = scene.start_frame; frame < scene.end_frame; frame++) {
+    const point = sceneCursorAt(scene, page, frame, view);
+    assert.ok(Number.isFinite(point.x) && Number.isFinite(point.y));
+    assert.ok(Math.hypot(point.x - previous.x, point.y - previous.y) < 110, `no jump at ${frame}`);
+    const active = scene.cues.find((c) => frame >= c.start_frame + c.approach_frames && frame < c.end_frame);
+    if (active) assert.deepEqual(point, screenPoint(cueAt(page.elements.find((e) => e.id === active.target_id), active, frame).tip,
+      cameraAt(scene.camera, frame), view));
+    previous = point;
+  }
+});
+
+test('geometry checker and renderer use identical whole-scene pointer positions', () => {
+  const code = "import json,sys; from check_screencast_plan import scene_cursor_at; p=json.load(sys.stdin); s=p['scenes'][0]; e={x['id']:x for x in p['pages'][0]['elements']}; print(json.dumps([scene_cursor_at(s,e,f,p['viewport']) for f in range(s['end_frame'])]))";
+  const points = JSON.parse(execFileSync(process.env.PYTHON || 'python', ['-c', code],
+    {cwd: new URL('.', import.meta.url), input: JSON.stringify(plan), encoding: 'utf8'}));
+  for (let frame = 0; frame < points.length; frame++) {
+    const point = sceneCursorAt(plan.scenes[0], plan.pages[0], frame, plan.viewport);
+    assert.ok(Math.abs(point.x - plan.viewport.x - points[frame][0]) < 1e-8);
+    assert.ok(Math.abs(point.y - plan.viewport.y - points[frame][1]) < 1e-8);
+  }
 });
