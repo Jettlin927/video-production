@@ -1,6 +1,6 @@
 # 公共 TTS 执行器
 
-需要从文案生成新旁白时读本页；已有用户录音仍走 ASR，不重做声音。公共入口是 `video_production.py tts`，钩子、PPT 讲解和其他旁白路线共用。
+需要从文案生成新旁白时读本页；已有用户录音仍走 ASR，不重做声音。公共入口是 `video_production.py tts`，钩子、PPT 讲解和其他旁白路线共用。用户明确要求用授权录音克隆声线时另读 [公共声音克隆](voice-cloning.md)，先创建可复用记录，再向本入口传 `--voice-record`。
 
 ## 一次调用，直接生成配音
 
@@ -17,8 +17,8 @@ Agent 只准备本次原文或句子数据，不为每条片写 prepare_text、b
 ## 输入、默认值与输出
 
 - 输入为 UTF-8 文本，或包含 `sentences[{id,text_zh}]` 的 JSON。文本自动生成稳定句子 ID；JSON 保留已有 ID 和原句。原文标点与文字不改写，数字／英文发音需要调整时另备经确认的配音文本，画面与字幕仍保留原文。
-- 默认 `qwen3-tts-flash / Cherry / Chinese`；`.env` 可设置 `BAILIAN_TTS_MODEL/BAILIAN_TTS_VOICE/BAILIAN_TTS_LANGUAGE`，CLI 的 `--model/--voice/--language-type` 优先。共用 `DASHSCOPE_API_KEY/DASHSCOPE_BASE_URL`；无需每条视频重新选音色或复制配置。当前执行器只适配 Qwen3-TTS-Flash 协议，不自动切换到声音克隆或其他 TTS 协议。
-- 文案自动按标点／空白分成不超过500字符的请求，连续原文合并到分段预算内；超长无标点内容按上限切开，不丢字、不改顺序。按段顺序合成，保持同一模型和音色。
+- 默认 `qwen3-tts-flash / Cherry / Chinese`；`.env` 可设置 `BAILIAN_TTS_MODEL/BAILIAN_TTS_VOICE/BAILIAN_TTS_LANGUAGE`，CLI 的 `--model/--voice/--language-type` 优先。共用 `DASHSCOPE_API_KEY/DASHSCOPE_BASE_URL`；无需每条视频重新选音色或复制配置。显式传入 `--voice-record` 才选择其绑定的非实时VC模型与音色，不自动切换或改写普通配置；其他协议仍不支持。
+- 文案自动按标点／空白分成不超过500字符的请求（克隆配音为200字符），连续原文合并到分段预算内；超长无标点内容按上限切开，不丢字、不改顺序。按段顺序合成，保持同一模型和音色。
 - 音频统一为24kHz、单声道、PCM16 WAV，拼接直接处理样本，不构造数百段 FFmpeg 跨淡化图。默认不额外插入段间静音；确有需要用 `--gap-s`，天然标点停顿保留，不在 TTS 内压气口或变速。
 - 产物为 `voiceover.wav`、`script-sentences.json`、`tts-manifest.json`。清单记录输入／模型／音色指纹、每段请求ID、用量、音频时长、拼接偏移和产物哈希。分段偏移不是句／词级时码；仍须用 `transcribe` 回扫，再用公共 `align` 对齐执行器输出的句子数据。
 
@@ -26,7 +26,7 @@ Agent 只准备本次原文或句子数据，不为每条片写 prepare_text、b
 
 缓存位于当前输出目录的 `.tts-cache/<signature>/`，音频指纹包含实际配音全文、模型、音色、语言、业务端点和段间留白。修改这些输入会使用另一套缓存；只改字幕分句或句子ID时更新句子数据，不重复合成同一全文。不要以“同名 chunk.wav 存在”判断可复用。
 
-重复执行同一命令复用哈希一致的完整音频或已完成分段；下载／本地转换失败可从已保存的 API 响应继续，不重新付费合成。签名下载地址仅留在本地缓存状态，不输出到 stdout／公开清单，不提交缓存或凭证。
+重复执行同一命令复用哈希一致的完整音频或已完成分段；收到的 API 响应在解析音频地址前先保存，下载／本地转换失败可继续，不重新付费合成。供应商返回HTTP OSS地址时只通过HTTPS下载对应官方对象。签名下载地址仅留在本地缓存状态，不输出到 stdout／公开清单，不提交缓存或凭证。
 
 提交超时、结果不明或明确拒绝时停止，保留对应分段状态，不自动重复 POST。先核对供应商结果、配置及错误，结果无法恢复且确需重试时获得新的调用授权，只处理明确失败的分段状态；不要清空全部缓存或换目录绕过未决请求。
 

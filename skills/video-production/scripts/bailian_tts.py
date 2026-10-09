@@ -1,4 +1,4 @@
-"""Shared Qwen3-TTS-Flash executor: exact text, bounded requests and resumable audio."""
+"""Shared Qwen narration executor: Flash or enrolled VC, exact text and resumable audio."""
 import argparse
 import json
 import math
@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 from urllib.request import Request, build_opener
+from urllib.parse import urlsplit, urlunsplit
 import wave
 
 from bailian_media import ApiRejected, Client, NoRedirect, ROOT, api_base, config, file_hash, fingerprint, load, save
@@ -57,10 +58,10 @@ def read_script(path):
     return sentences
 
 
-def chunk_text(text):
+def chunk_text(text, limit=CHUNK_CHARS):
     chunks = []
     while text:
-        end = min(CHUNK_CHARS, len(text))
+        end = min(limit, len(text))
         if end < len(text):
             boundaries = list(re.finditer(r'[，,；;。！？!?\s]', text[:end]))
             if boundaries and boundaries[-1].end() >= end // 2:
@@ -72,13 +73,17 @@ def chunk_text(text):
             chunks[-1] += piece
         else:
             raise ValueError('Script starts with excessive whitespace; provide narration text')
-    if any(len(chunk) > CHUNK_CHARS for chunk in chunks):
+    if any(len(chunk) > limit for chunk in chunks):
         raise ValueError('Excessive whitespace exceeds the TTS chunk limit')
     return chunks
 
 
 def download_audio(url, path):
     try:
+        # Qwen VC can return an HTTP OSS URL. Fetch the same official object over TLS only.
+        parts = urlsplit(url)
+        if parts.scheme == 'http':
+            url = urlunsplit(parts._replace(scheme='https'))
         with build_opener(NoRedirect()).open(Request(oss_url(url)), timeout=120) as response:
             data = response.read(64 * 1024 * 1024 + 1)
         if not data or len(data) > 64 * 1024 * 1024:
@@ -136,27 +141,41 @@ def join_audio(parts, gap_s, output):
     return offsets
 
 
-def run(script, out_dir, cfg, execute=False, model=None, voice=None, language_type=None, gap_s=0, ffmpeg=None, client=None):
+def run(script, out_dir, cfg, execute=False, model=None, voice=None, language_type=None, gap_s=0, ffmpeg=None, client=None, voice_record=None):
     if not math.isfinite(gap_s) or not 0 <= gap_s <= 5:
         raise ValueError('gap_s must be between 0 and 5 seconds')
+    gap_s = int(gap_s) if gap_s == int(gap_s) else gap_s
     if script.resolve() in {out_dir.resolve() / name for name in ('voiceover.wav', 'script-sentences.json', 'tts-manifest.json')}:
         raise ValueError('TTS output must not overwrite the source script')
     sentences = read_script(script)
     text = ''.join(sentence['text_zh'] for sentence in sentences)
-    chunks = chunk_text(text)
+    profile = None
+    if voice_record:
+        if voice_record.resolve() in {out_dir.resolve() / name for name in ('voiceover.wav', 'script-sentences.json', 'tts-manifest.json')}:
+            raise ValueError('TTS output must not overwrite the voice record')
+        from bailian_voice import load_voice_record
+        profile = load_voice_record(voice_record, cfg)
+        if (model and model != profile['model']) or (voice and voice != profile['voice']):
+            raise ValueError('Explicit model/voice must match the cloned voice record')
+        model, voice = profile['model'], profile['voice']
+    chunks = chunk_text(text, 200 if profile else CHUNK_CHARS)
     if ''.join(chunks) != text:
         raise ValueError('TTS chunks do not reconstruct source text')
     options = {'model': model or os.environ.get('BAILIAN_TTS_MODEL') or cfg.get('BAILIAN_TTS_MODEL') or 'qwen3-tts-flash',
                'voice': voice or os.environ.get('BAILIAN_TTS_VOICE') or cfg.get('BAILIAN_TTS_VOICE') or 'Cherry',
                'language_type': language_type or os.environ.get('BAILIAN_TTS_LANGUAGE') or cfg.get('BAILIAN_TTS_LANGUAGE') or 'Chinese'}
-    if not options['model'].startswith('qwen3-tts-flash'):
-        raise ValueError('This executor supports Qwen3-TTS-Flash; other model protocols require a maintained adapter')
+    if not profile and not options['model'].startswith('qwen3-tts-flash'):
+        raise ValueError('Use --voice-record for cloned VC synthesis; otherwise this adapter supports Qwen3-TTS-Flash')
     base = api_base(cfg) if cfg.get('DASHSCOPE_BASE_URL') else ''
     signature = fingerprint({'schema': 1, 'text': text, 'options': options, 'base': base, 'gap_s': gap_s})
+    # Older CLI runs fingerprinted 0.0 while direct calls used 0. They are the same audio.
+    legacy_signature = fingerprint({'schema': 1, 'text': text, 'options': options, 'base': base, 'gap_s': float(gap_s)})
     script_revision = 'script-' + fingerprint(sentences)[:20]
     plan = {'signature': signature, **options, 'text_chars': len(text), 'sentences': len(sentences),
             'chunks': len(chunks), 'chunk_chars': [len(chunk) for chunk in chunks], 'gap_s': gap_s,
             'out_dir': str(out_dir), 'key_configured': bool(cfg.get('DASHSCOPE_API_KEY', '').strip()), 'script_revision': script_revision}
+    if profile:
+        plan['voice_record'] = str(voice_record)
     if not execute:
         return {'mode': 'dry_run', **plan}
     api_base(cfg)
@@ -168,12 +187,15 @@ def run(script, out_dir, cfg, execute=False, model=None, voice=None, language_ty
         save(out_dir / 'script-sentences.json', {'revision': script_revision, 'sentences': sentences})
         if manifest_path.is_file():
             manifest = load(manifest_path)
-            if manifest.get('signature') == signature and final.is_file() and file_hash(final) == manifest.get('audio_sha256'):
+            if manifest.get('signature') in (signature, legacy_signature) and final.is_file() and file_hash(final) == manifest.get('audio_sha256'):
                 wav_frames(final)
                 manifest.update(plan)
                 save(manifest_path, manifest)
                 return {**manifest, 'reused': True}
         cache = out_dir / '.tts-cache' / signature
+        legacy_cache = out_dir / '.tts-cache' / legacy_signature
+        if not cache.exists() and legacy_cache.exists():
+            cache = legacy_cache
         cache.mkdir(parents=True, exist_ok=True)
         details, parts = [], []
         for index, chunk in enumerate(chunks):
@@ -191,10 +213,10 @@ def run(script, out_dir, cfg, execute=False, model=None, voice=None, language_ty
                 try:
                     response = client.call('POST', ENDPOINT, {'model': options['model'],
                                            'input': {'text': chunk, 'voice': options['voice'], 'language_type': options['language_type']}})
-                    audio_url = response.get('output', {}).get('audio', {}).get('url')
-                    if not audio_url:
-                        raise RuntimeError('No audio URL')
-                    state = {'status': 'received', 'audio_url': oss_url(audio_url), 'request_id': response.get('request_id'),
+                    # Save the received response before interpreting/downloading it. A local adapter
+                    # failure must not lose a paid result or be mistaken for an uncertain API call.
+                    save(cache / f'{index:04d}.response.json', response)
+                    state = {'status': 'received', 'audio_url': response.get('output', {}).get('audio', {}).get('url'), 'request_id': response.get('request_id'),
                              'usage': response.get('usage', {})}
                     save(state_path, state)
                 except ApiRejected as exc:
@@ -205,6 +227,8 @@ def run(script, out_dir, cfg, execute=False, model=None, voice=None, language_ty
                     raise RuntimeError(f'Chunk {index} synthesis failed or outcome uncertain; do not resubmit blindly') from None
             raw = cache / f'{index:04d}.audio'
             if not raw.is_file() or not raw.stat().st_size:
+                if not state.get('audio_url'):
+                    raise RuntimeError(f'Chunk {index} response has no audio URL; inspect saved response, do not resynthesize')
                 download_audio(state['audio_url'], raw)
             normalize_audio(ffmpeg, raw, part)
             count = wav_frames(part)
@@ -228,6 +252,7 @@ def main(argv=None):
     parser.add_argument('--script', type=Path, required=True)
     parser.add_argument('--out-dir', type=Path, required=True)
     parser.add_argument('--env', type=Path, default=ROOT / '.env')
+    parser.add_argument('--voice-record', type=Path)
     for name in ('model', 'voice', 'language-type'):
         parser.add_argument('--' + name)
     parser.add_argument('--gap-s', type=float, default=0)
@@ -236,7 +261,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         result = run(args.script, args.out_dir, config(args.env), args.execute,
-                     args.model, args.voice, args.language_type, args.gap_s, args.ffmpeg)
+                     args.model, args.voice, args.language_type, args.gap_s, args.ffmpeg, voice_record=args.voice_record)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, wave.Error):
         # Downloads can contain signed URLs. Never echo raw transport exceptions.
         import sys

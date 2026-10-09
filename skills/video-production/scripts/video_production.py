@@ -98,12 +98,33 @@ def build_parser():
     p.add_argument('--foreground', action='store_true', help='Local verification only.')
     p.set_defaults(preview_only=True)
 
+    p = command(sub, 'voice-create', 'Create one reusable cloned voice from authorized local audio; dry-run unless --execute.',
+                HERE / 'bailian_voice.py', ['<out> voice record', '<out-stem>.state.json enrollment checkpoint'])
+    p.set_defaults(_action='create')
+    for flag in ('workspace-root', 'audio', 'out'):
+        add_path(p, '--' + flag, flag)
+    add_path(p, '--env', 'Optional Skill .env path.', required=False)
+    p.add_argument('--preferred-name', default='video', help='1-16 ASCII letters, numbers or underscores.')
+    p.add_argument('--start-s', type=float, default=0)
+    p.add_argument('--sample-seconds', type=float, default=15)
+    p.add_argument('--consent', action='store_true', help='Reference is owned, authorized or synthetic.')
+    p.add_argument('--execute', action='store_true', help='Submit one paid voice enrollment; no automatic retries.')
+
+    p = command(sub, 'voice-list', 'Query account voice identities without creating another voice.',
+                HERE / 'bailian_voice.py', ['paged JSON on stdout'])
+    p.set_defaults(_action='list')
+    add_path(p, '--env', 'Optional Skill .env path.', required=False)
+    p.add_argument('--page-index', type=int, default=0)
+    p.add_argument('--page-size', type=int, default=20)
+    p.add_argument('--execute', action='store_true', help='Query provider; dry-run by default.')
+
     p = command(sub, 'tts', 'Synthesize exact narration with shared Qwen TTS; dry-run unless --execute.',
                 HERE / 'bailian_tts.py', ['<out-dir>/voiceover.wav', '<out-dir>/script-sentences.json', '<out-dir>/tts-manifest.json'])
     for flag in ('workspace-root', 'script', 'out-dir'):
         add_path(p, '--' + flag, flag)
     add_path(p, '--env', 'Optional Skill .env path.', required=False)
     p.add_argument('--model', help='Qwen3-TTS-Flash model ID; defaults to config or qwen3-tts-flash.')
+    add_path(p, '--voice-record', 'Reusable cloned voice record; selects its bound VC model and voice.', required=False)
     p.add_argument('--voice', help='Defaults to config or Cherry.')
     p.add_argument('--language-type', help='Defaults to config or Chinese.')
     p.add_argument('--gap-s', type=float, default=0, help='Optional silence between TTS chunks; no pause compression.')
@@ -311,7 +332,7 @@ def forwarded(args):
             out += [flag, str(value)]
     if command == 'check':
         out += ['--json', '--write-tools']
-    if command in ('transcribe', 'tts', 'tighten'):
+    if command in ('transcribe', 'tts', 'tighten', 'voice-create'):
         out += ['--ffmpeg', tools(args.workspace_root)['ffmpeg']]
     if command == 'screencast-build' and args.workspace_root:
         out += ['--ffprobe', tools(args.workspace_root)['ffprobe']]

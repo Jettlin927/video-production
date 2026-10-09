@@ -12,7 +12,7 @@ class UnifiedCliTests(unittest.TestCase):
         parser = cli.build_parser()
         contract = cli.parser_contract(parser)
         self.assertEqual(set(contract['commands']),
-                         {'prepare', 'check', 'init', 'tts', 'align', 'tighten', 'sample', 'screencast-preview', 'transcribe', 'compile', 'captions', 'render', 'qc',
+                         {'prepare', 'check', 'init', 'tts', 'voice-create', 'voice-list', 'align', 'tighten', 'sample', 'screencast-preview', 'transcribe', 'compile', 'captions', 'render', 'qc',
                           'hardware', 'index', 'select', 'pause-prepare', 'caption-draft', 'caption-build',
                           'export', 'deliver', 'job-status', 'job-stop', 'job-resume', 'job-watch', 'inspect', 'screencast-check',
                           'screencast-build', 'screencast-deliver'})
@@ -85,6 +85,19 @@ class UnifiedCliTests(unittest.TestCase):
             self.assertIn('--preview-only', command)
             self.assertIn('--workspace-root', command)
             self.assertNotIn('--review', command)
+
+    def test_voice_public_commands_forward_shared_tools_and_action(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); (root / 'video-production-deps').mkdir()
+            (root / 'video-production-deps/tools.json').write_text(json.dumps({'ffmpeg': 'shared-ffmpeg'}), encoding='utf-8')
+            args = cli.build_parser().parse_args(['voice-create', '--workspace-root', str(root),
+                '--audio', 'sample.wav', '--out', 'voice.json', '--consent', '--execute'])
+            forwarded = cli.forwarded(args)
+            self.assertEqual(forwarded[0], 'create')
+            self.assertEqual(forwarded[-2:], ['--ffmpeg', 'shared-ffmpeg'])
+            self.assertNotIn('--workspace-root', forwarded)
+            args = cli.build_parser().parse_args(['voice-list', '--execute'])
+            self.assertEqual(cli.forwarded(args)[0], 'list')
 
 
 if __name__ == '__main__':

@@ -203,6 +203,77 @@ class TtsTests(unittest.TestCase):
             result = tts.run(self.script, self.out, CFG, True, ffmpeg=ffmpeg, client=Client())
         self.assertEqual(tts.wav_frames(Path(result['audio'])), 2400)
 
+    def test_cloned_voice_selects_bound_model_and_reuses_audio(self):
+        from bailian_voice import CLONE_MODEL, provider_scope
+        profile = self.root / 'voice-record.json'
+        profile.write_text(json.dumps({'schema_version': 1, 'status': 'ready', 'model': CLONE_MODEL,
+            'voice': 'qwen-tts-vc-fixture-123', 'provider_scope': provider_scope(CFG)}), encoding='utf-8')
+        client = Client()
+        result = self.run_tts(client, voice_record=profile)
+        self.assertEqual(client.calls[0][2]['model'], CLONE_MODEL)
+        self.assertEqual(client.calls[0][2]['input']['voice'], 'qwen-tts-vc-fixture-123')
+        resumed = Client()
+        self.assertTrue(self.run_tts(resumed, voice_record=profile)['reused'])
+        self.assertEqual(resumed.calls, [])
+        with self.assertRaisesRegex(ValueError, 'must match'):
+            tts.run(self.script, self.out, CFG, model='qwen3-tts-flash', voice_record=profile)
+        self.assertEqual(result['voice_record'], str(profile))
+        with self.assertRaisesRegex(ValueError, 'overwrite the voice record'):
+            tts.run(self.script, self.root, CFG, voice_record=self.root / 'tts-manifest.json')
+
+    def test_vc_requires_profile_and_uses_shorter_chunks(self):
+        from bailian_voice import CLONE_MODEL, provider_scope
+        with self.assertRaisesRegex(ValueError, 'voice-record'):
+            tts.run(self.script, self.out, CFG, model=CLONE_MODEL, voice='qwen-tts-vc-fixture')
+        profile = self.root / 'voice-record.json'
+        profile.write_text(json.dumps({'schema_version': 1, 'status': 'ready', 'model': CLONE_MODEL,
+            'voice': 'qwen-tts-vc-fixture-123', 'provider_scope': provider_scope(CFG)}), encoding='utf-8')
+        self.script.write_text('新的旁白内容' * 100, encoding='utf-8')
+        result = tts.run(self.script, self.out, CFG, voice_record=profile)
+        self.assertTrue(all(count <= 200 for count in result['chunk_chars']))
+
+    def test_http_official_audio_url_upgrades_to_https_and_unknown_host_is_rejected(self):
+        from urllib.parse import urlsplit
+        import io
+        opener = unittest.mock.MagicMock()
+        opener.open.return_value.__enter__.return_value = io.BytesIO(b'fixture')
+        with patch.object(tts, 'build_opener', return_value=opener):
+            tts.download_audio('http://result.oss.aliyuncs.com/voice.wav?signature=private', self.root / 'download.audio')
+            self.assertEqual(urlsplit(opener.open.call_args.args[0].full_url).scheme, 'https')
+            with self.assertRaises(RuntimeError):
+                tts.download_audio('http://untrusted.example/voice.wav', self.root / 'other.audio')
+            self.assertEqual(opener.open.call_count, 1)
+
+    def test_unexpected_received_response_is_saved_and_never_repaid(self):
+        client = Client([{'request_id': 'received-id', 'output': {}, 'usage': {'characters': 20}}])
+        with self.assertRaisesRegex(RuntimeError, 'no audio URL'):
+            self.run_tts(client)
+        response_files = list((self.out / '.tts-cache').rglob('*.response.json'))
+        self.assertEqual(json.loads(response_files[0].read_text('utf-8'))['request_id'], 'received-id')
+        resumed = Client()
+        with self.assertRaisesRegex(RuntimeError, 'no audio URL'):
+            self.run_tts(resumed)
+        self.assertEqual(resumed.calls, [])
+
+    def test_integer_and_float_gaps_reuse_legacy_cache_without_paid_calls(self):
+        from bailian_media import fingerprint, save, load
+        first = self.run_tts(Client())
+        legacy = fingerprint({'schema': 1, 'text': self.script.read_text('utf-8'),
+            'options': {key: first[key] for key in ('model', 'voice', 'language_type')},
+            'base': CFG['DASHSCOPE_BASE_URL'], 'gap_s': 0.0})
+        cache = self.out / '.tts-cache'
+        (cache / first['signature']).rename(cache / legacy)
+        manifest = load(self.out / 'tts-manifest.json')
+        manifest.update(signature=legacy, gap_s=0.0)
+        save(self.out / 'tts-manifest.json', manifest)
+        resumed = Client()
+        self.assertTrue(self.run_tts(resumed, gap_s=0.0)['reused'])
+        self.assertEqual(resumed.calls, [])
+        # Final output missing: recover the old completed chunk cache, still no new POST.
+        (self.out / 'voiceover.wav').unlink()
+        self.run_tts(resumed)
+        self.assertEqual(resumed.calls, [])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

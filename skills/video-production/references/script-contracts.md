@@ -38,6 +38,8 @@ python scripts/video_production.py check --workspace-root <workspace-root> --dee
 
 ## 公共配音：bailian_tts.py
 
+声音克隆由公共 `bailian_voice.py` 的 `voice-create` 和 `voice-list` 提供；所有子 Skill 复用，不各自写接口。参考录音、模型绑定、记录复用及授权边界见 [公共声音克隆](voice-cloning.md)。创建后将记录传给 `tts --voice-record`，普通配音默认值保持不变。
+
 `tts` 从本次文本或句子JSON生成配音，不需要项目自写脚本；参数、配置和缓存恢复见 [公共 TTS](tts.md)。不带 `--execute` 为无网络／无写入预检；授权执行后返回后台job，复用 `job-watch` 等终态。产物为 `voiceover.wav`、可直接交给整句对齐的 `script-sentences.json` 及 `tts-manifest.json`。
 
 执行器负责长文分段、音频格式统一、样本拼接和请求状态恢复，不包含 ASR、气口压缩或视频渲染。读取清单再进入这些后续步骤；遇到公共工具缺陷走维护任务，不在视频生产会话改代码。

@@ -1,6 +1,6 @@
 ---
 name: video-production
-description: 视频制作与视频/录音转字幕入口。按素材和目标路由到转写、真人口播剪辑、钩子、PPT 运镜讲解或分镜制作流程，并复用字幕字体资源。
+description: 视频制作与视频/录音转字幕入口。按素材和目标路由到转写、真人口播剪辑、钩子、PPT 运镜讲解或分镜制作流程，并提供公共配音、授权声音克隆和字幕字体资源。
 ---
 
 # 视频制作主 Skill
@@ -37,6 +37,8 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
 
 需要新旁白时读取 [公共 TTS 执行器](references/tts.md)，使用 `video_production.py tts`；它接收本次文本／句子JSON，自动分句、分段合成、拼接和缓存恢复。默认配置已有可用音色时直接使用，不为每条视频写 TTS 脚本、查旧项目调用代码或重新询问全部参数。
 
+用户明确要求声音克隆时读取 [公共声音克隆](references/voice-cloning.md)，使用 `voice-create → tts --voice-record`；已有音色直接复用记录。仅创建／查询音色不新建视频项目，记录保存到工作区的 `voice-library/`。其他子 Skill 共用这一入口，不各自实现上传、克隆或配音脚本。
+
 ## 决策树
 
 ```text
@@ -51,7 +53,7 @@ python "<skill-root>/scripts/video_production.py" prepare --workspace-root "<wor
    └─ 其他分镜视频 → 本 Skill 的 references/storyboard.md
 ```
 
-一句“生成一段口播”可能指剪已有真人录像或从文案造数字人口播；先检查附件与原片，只有这个区别影响后续时才简短澄清。没有真人原片时不承诺口型克隆、声音克隆或数字人能力。仅改字幕/换某镜头时沿用既有工程做局部修正。
+一句“生成一段口播”可能指剪已有真人录像或从文案造数字人口播；先检查附件与原片，只有这个区别影响后续时才简短澄清。声音克隆须有明确授权的参考录音及调用范围，不自动从风格参考取声；不承诺口型克隆或数字人能力。仅改字幕/换某镜头时沿用既有工程做局部修正。
 
 ## 路由调用约定
 
